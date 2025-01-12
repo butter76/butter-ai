@@ -2,6 +2,14 @@
   "extraPaths": ["./"],
   "pythonVersion": "3.10",
   "venvPath": ".",
+  "typeCheckingMode": "standard",
+  "diagnosticMode": "workspace",
+  "autoImportCompletions": true,
+  "useLibraryCodeForTypes": true,
+  "strictDictionaryInference": true,
+  "strictSetInference": true, 
+  "strictListInference": true,
+  "enableReachabilityAnalysis": true,
   "executionEnvironments": [
     {
       "root": "./projects",
