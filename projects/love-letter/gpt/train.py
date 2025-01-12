@@ -4,7 +4,8 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from gpt.models.gpt_model import GPT, GPTConfig
-from gpt.models.dataset import CharacterDataset
+from gpt.models.dataset import LoveLetterDataset
+from gpt.models.tokenizer import LoveLetterTokenizer
 import random
 import numpy as np
 
@@ -23,24 +24,45 @@ def load_hparams(hparams_path: str) -> dict:
 
 
 def train():
-    # Hard-coded path to hparams
-    config_path = os.path.join(os.path.dirname(__file__), "config", "hparams.yaml")
-    hparams = load_hparams(config_path)
-    model_config = hparams["model"]
-    train_config = hparams["training"]
+    # Hard-coded path to training hyperparams
+    hparams_path = os.path.join(os.path.dirname(__file__), "config", "hparams.yaml")
+    hparams = load_hparams(hparams_path)
+
+    # Hard-coded path to model config (used by dataset and model)
+    model_config_path = os.path.join(os.path.dirname(__file__), "config", "model_config.yaml")
+    with open(model_config_path, 'r') as f:
+        model_config_yaml = yaml.safe_load(f)
+
+    # Extract relevant config
+    model_conf = model_config_yaml["model"]  # GPT model config
+    train_conf = model_config_yaml["training"]  # general training config
+    training_hparams = hparams.get("training", {})
+
+    # Merge hyperparams: command line > hparams.yaml > model_config.yaml
+    # Here we just combine them, with hparams.yaml taking precedence over model_config.yaml
+    for k, v in training_hparams.items():
+        train_conf[k] = v
 
     # Set seed
-    set_seed(train_config.get("seed", 42))
+    seed = train_conf.get("seed", 42)
+    set_seed(seed)
 
-    # Construct dataset
-    # By default, logs might be stored in ../../../love-letter-logs/logs/
-    # Adjust path as necessary
-    data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../love-letter-logs/logs"))
-    block_size = model_config["block_size"]
-    dataset = CharacterDataset(data_dir=data_dir, block_size=block_size, ascii_size=model_config["vocab_size"])
+    # Create tokenizer
+    tokenizer = LoveLetterTokenizer(debug=False)
+
+    # Construct dataset using LoveLetterDataset
+    data_dir = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "../../../../love-letter-logs/logs")
+    )
+
+    dataset = LoveLetterDataset(
+        data_dir=data_dir,
+        tokenizer=tokenizer,
+        config_path=model_config_path
+    )
 
     # Create DataLoader
-    batch_size = train_config["batch_size"]
+    batch_size = train_conf["batch_size"]
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True)
 
     # Setup device
@@ -48,28 +70,30 @@ def train():
 
     # Build GPT model
     config = GPTConfig(
-        vocab_size=model_config["vocab_size"],
-        block_size=model_config["block_size"],
-        n_layer=model_config["n_layer"],
-        n_head=model_config["n_head"],
-        n_embd=model_config["n_embd"],
-        dropout=model_config["dropout"]
+        vocab_size=model_conf["vocab_size"],
+        block_size=model_conf["seq_length"],
+        n_layer=model_conf["n_layer"],
+        n_head=model_conf["n_head"],
+        n_embd=model_conf["n_embd"],
+        dropout=model_conf["dropout"]
     )
     model = GPT(config).to(device)
 
     # Training hyperparameters
-    max_epochs = train_config["max_epochs"]
-    learning_rate = train_config["learning_rate"]
-    betas = tuple(train_config["betas"])
-    weight_decay = train_config["weight_decay"]
-    warmup_steps = train_config["warmup_steps"]
-    gradient_clip_val = train_config["gradient_clip_val"]
-    save_every = train_config.get("save_every", 1)
+    max_epochs = train_conf["max_epochs"]
+    learning_rate = train_conf["learning_rate"]
+    betas = (0.9, 0.99)
+    if "betas" in train_conf:
+        betas = tuple(train_conf["betas"])  # e.g. [0.9, 0.99]
+    weight_decay = train_conf["weight_decay"]
+    warmup_steps = train_conf["warmup_steps"]
+    gradient_clip_val = train_conf["gradient_clip_val"]
+    save_every = train_conf.get("save_every", 1)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, betas=betas, weight_decay=weight_decay)
     scheduler = torch.optim.lr_scheduler.LambdaLR(
         optimizer,
-        lambda step: min((step+1)/warmup_steps, 1.0)
+        lambda step: min((step + 1) / warmup_steps, 1.0)
     )
 
     # Training loop
@@ -77,24 +101,21 @@ def train():
     for epoch in range(max_epochs):
         model.train()
         for batch_idx, (x, y) in enumerate(loader):
-            x = x.to(device)  # [B, T]
-            y = y.to(device)  # [B, T]
+            x = x.to(device)  # [B, seq_length]
+            y = y.to(device)  # [B, seq_length]
 
             # Forward
-            logits = model(x)
-            # logits shape: [B, T, vocab_size]
+            logits = model(x)  # [B, seq_length, vocab_size]
 
-            # We want next-character prediction loss
+            # Next-token prediction loss
             loss_fn = nn.CrossEntropyLoss()
-            # Flatten
             B, T, V = logits.shape
-            logits_flat = logits.view(B*T, V)        # [B*T, V]
-            targets_flat = y.view(B*T)               # [B*T]
+            logits_flat = logits.view(B * T, V)  # [B*T, V]
+            targets_flat = y.view(B * T)         # [B*T]
             loss = loss_fn(logits_flat, targets_flat)
 
             optimizer.zero_grad()
             loss.backward()
-            # Clip gradients
             nn.utils.clip_grad_norm_(model.parameters(), gradient_clip_val)
             optimizer.step()
             scheduler.step()
