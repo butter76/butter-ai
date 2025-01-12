@@ -4,7 +4,7 @@ import random
 import sys
 from typing import Any
 from utils.bot import GameState, LoveLetterBot, Move, Hand
-from config import BaseConfig
+from common.config import BaseConfig
 
 
 class RandomBotConfig(BaseConfig):

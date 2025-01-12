@@ -11,5 +11,5 @@ dependencies = [
 ]
 
 [tool.setuptools]
-package-dir = {"" = "."}
-packages = ["projects"]
+package-dir = {"" = "projects"}
+packages = ["common", "love-letter"]

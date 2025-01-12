@@ -1,0 +1,13 @@
+{
+    "extraPaths": ["./"],
+    "pythonVersion": "3.10",
+    "venvPath": ".",
+    "executionEnvironments": [
+      {
+        "root": "./projects",
+        "pythonVersion": "3.10",
+        "extraPaths": ["./"]
+      }
+    ]
+  }
+  

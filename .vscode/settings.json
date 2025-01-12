@@ -15,5 +15,8 @@
     "python.analysis.typeEvaluation.deprecateTypingAliases": true,
     "python.analysis.aiCodeActions": {
         
-    }
+    },
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}"
+    ]
 }
