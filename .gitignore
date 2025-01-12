@@ -45,6 +45,7 @@ yarn.lock
 
 # Python cache
 __pycache__
+*.egg-info
 
 # Project-specific files
 *.reports/

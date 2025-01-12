@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "butter-ai"
+version = "0.1.0"
+description = "Butter AI Games"
+dependencies = [
+    "pyyaml",
+]
+
+[tool.setuptools]
+package-dir = {"" = "."}
+packages = ["projects"]

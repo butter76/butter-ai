@@ -4,7 +4,7 @@ import random
 import sys
 from typing import Any
 from utils.bot import GameState, LoveLetterBot, Move, Hand
-from ....config import BaseConfig
+from config import BaseConfig
 
 
 class RandomBotConfig(BaseConfig):
@@ -83,5 +83,5 @@ class RandomBot(LoveLetterBot):
 
 
 if __name__ == "__main__":
-    config = RandomBotConfig.from_args_and_yaml('random_bot.yaml')
+    config = RandomBotConfig.from_args_and_yaml('./bots/random_bot.yaml')
     RandomBot(config).main()
