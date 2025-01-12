@@ -1,138 +1,135 @@
 import os
 import yaml
 import torch
-import torch.nn as nn
+import argparse
 from torch.utils.data import DataLoader
-from gpt.models.gpt_model import GPT, GPTConfig
-from gpt.models.dataset import LoveLetterDataset
-from gpt.models.tokenizer import LoveLetterTokenizer
-import random
-import numpy as np
+from typing import Tuple
+from .models.dataset import LoveLetterDataset
+from .models.tokenizer import LoveLetterTokenizer
+from .models.gpt_model import LoveLetterGPT
 
+def parse_config(config_str: str) -> dict:
+    with open(config_str, 'r') as f:
+        cfg = yaml.safe_load(f)
+    return cfg
 
-def set_seed(seed: int):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
+def train_loop(
+    model: LoveLetterGPT,
+    dataloader: DataLoader,
+    optimizer: torch.optim.Optimizer,
+    device: torch.device,
+    pad_token_id: int
+) -> float:
+    model.train()
+    total_loss = 0.0
+    for batch in dataloader:
+        x, y = batch
+        # x, y: [batch_size, seq_len]
+        x, y = x.to(device), y.to(device)
+        # Build attention mask => (x != pad_token_id)
+        attention_mask = (x != pad_token_id).long()  # [b, seq_len]
 
+        optimizer.zero_grad()
+        logits = model(x, attention_mask=attention_mask)  # [b, seq_len, vocab_size]
+        loss = model.compute_loss(logits, y)
+        loss.backward()
+        optimizer.step()
+        total_loss += loss.item()
+    return total_loss / len(dataloader)
 
-def load_hparams(hparams_path: str) -> dict:
-    with open(hparams_path, 'r') as f:
-        hparams = yaml.safe_load(f)
-    return hparams
+def val_loop(
+    model: LoveLetterGPT,
+    dataloader: DataLoader,
+    device: torch.device,
+    pad_token_id: int
+) -> float:
+    model.eval()
+    total_loss = 0.0
+    with torch.no_grad():
+        for batch in dataloader:
+            x, y = batch
+            x, y = x.to(device), y.to(device)
+            attention_mask = (x != pad_token_id).long()  # [b, seq_len]
 
+            logits = model(x, attention_mask=attention_mask)
+            loss = model.compute_loss(logits, y)
+            total_loss += loss.item()
+    return total_loss / len(dataloader)
 
-def train():
-    # Hard-coded path to training hyperparams
-    hparams_path = os.path.join(os.path.dirname(__file__), "config", "hparams.yaml")
-    hparams = load_hparams(hparams_path)
+def main(config_path: str):
+    # Parse config
+    config = parse_config(config_path)
+    model_cfg = config["model"]
+    data_cfg = config.get("data", {})
+    train_logs_dir = data_cfg.get("train_logs_dir", "../../../love-letter-logs/logs/")
+    val_logs_dir = data_cfg.get("val_logs_dir", None)
 
-    # Hard-coded path to model config (used by dataset and model)
-    model_config_path = os.path.join(os.path.dirname(__file__), "config", "model_config.yaml")
-    with open(model_config_path, 'r') as f:
-        model_config_yaml = yaml.safe_load(f)
+    device = torch.device(model_cfg.get("device", "cuda" if torch.cuda.is_available() else "cpu"))
+    vocab_size = model_cfg["vocab_size"]
+    seq_length = model_cfg["seq_length"]
+    n_layer = model_cfg["n_layer"]
+    n_head = model_cfg["n_head"]
+    d_model = model_cfg["d_model"]
+    d_ff = model_cfg["d_ff"]
+    dropout = model_cfg["dropout"]
+    lr = model_cfg["lr"]
+    batch_size = model_cfg["batch_size"]
+    epochs = model_cfg["epochs"]
+    pad_token_id = model_cfg["pad_token_id"]
 
-    # Extract relevant config
-    model_conf = model_config_yaml["model"]  # GPT model config
-    train_conf = model_config_yaml["training"]  # general training config
-    training_hparams = hparams.get("training", {})
-
-    # Merge hyperparams: command line > hparams.yaml > model_config.yaml
-    # Here we just combine them, with hparams.yaml taking precedence over model_config.yaml
-    for k, v in training_hparams.items():
-        train_conf[k] = v
-
-    # Set seed
-    seed = train_conf.get("seed", 42)
-    set_seed(seed)
-
-    # Create tokenizer
     tokenizer = LoveLetterTokenizer(debug=False)
-
-    # Construct dataset using LoveLetterDataset
-    data_dir = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "../../../../love-letter-logs/logs")
-    )
-
-    dataset = LoveLetterDataset(
-        data_dir=data_dir,
+    train_dataset = LoveLetterDataset(
+        data_dir=train_logs_dir,
         tokenizer=tokenizer,
-        config_path=model_config_path
+        config_path=config_path  # re-use to get seq_length or just read model_cfg
     )
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
 
-    # Create DataLoader
-    batch_size = train_conf["batch_size"]
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True)
+    # Optionally do validation dataset if val_logs_dir is provided
+    val_dataloader = None
+    if val_logs_dir and os.path.exists(val_logs_dir):
+        val_dataset = LoveLetterDataset(
+            data_dir=val_logs_dir,
+            tokenizer=tokenizer,
+            config_path=config_path
+        )
+        val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
 
-    # Setup device
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = LoveLetterGPT(
+        vocab_size=vocab_size,
+        d_model=d_model,
+        n_layer=n_layer,
+        n_head=n_head,
+        d_ff=d_ff,
+        max_seq_len=seq_length,
+        dropout=dropout,
+        pad_token_id=pad_token_id
+    ).to(device)
 
-    # Build GPT model
-    config = GPTConfig(
-        vocab_size=model_conf["vocab_size"],
-        block_size=model_conf["seq_length"],
-        n_layer=model_conf["n_layer"],
-        n_head=model_conf["n_head"],
-        n_embd=model_conf["n_embd"],
-        dropout=model_conf["dropout"]
-    )
-    model = GPT(config).to(device)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
 
-    # Training hyperparameters
-    max_epochs = train_conf["max_epochs"]
-    learning_rate = train_conf["learning_rate"]
-    betas = (0.9, 0.99)
-    if "betas" in train_conf:
-        betas = tuple(train_conf["betas"])  # e.g. [0.9, 0.99]
-    weight_decay = train_conf["weight_decay"]
-    warmup_steps = train_conf["warmup_steps"]
-    gradient_clip_val = train_conf["gradient_clip_val"]
-    save_every = train_conf.get("save_every", 1)
+    best_val_loss = float("inf")
+    save_dir = model_cfg.get("save_dir", "./checkpoints")
+    os.makedirs(save_dir, exist_ok=True)
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, betas=betas, weight_decay=weight_decay)
-    scheduler = torch.optim.lr_scheduler.LambdaLR(
-        optimizer,
-        lambda step: min((step + 1) / warmup_steps, 1.0)
-    )
+    for epoch in range(1, epochs + 1):
+        train_loss = train_loop(model, train_dataloader, optimizer, device, pad_token_id)
+        print(f"Epoch {epoch} / {epochs}, Train Loss: {train_loss:.4f}")
 
-    # Training loop
-    step = 0
-    for epoch in range(max_epochs):
-        model.train()
-        for batch_idx, (x, y) in enumerate(loader):
-            x = x.to(device)  # [B, seq_length]
-            y = y.to(device)  # [B, seq_length]
-
-            # Forward
-            logits = model(x)  # [B, seq_length, vocab_size]
-
-            # Next-token prediction loss
-            loss_fn = nn.CrossEntropyLoss()
-            B, T, V = logits.shape
-            logits_flat = logits.view(B * T, V)  # [B*T, V]
-            targets_flat = y.view(B * T)         # [B*T]
-            loss = loss_fn(logits_flat, targets_flat)
-
-            optimizer.zero_grad()
-            loss.backward()
-            nn.utils.clip_grad_norm_(model.parameters(), gradient_clip_val)
-            optimizer.step()
-            scheduler.step()
-
-            step += 1
-            if step % 100 == 0:
-                print(f"Epoch {epoch+1}/{max_epochs}, Step {step}, Loss {loss.item():.4f}")
-
-        # Save checkpoint
-        if (epoch + 1) % save_every == 0:
-            ckpt_path = os.path.join(os.path.dirname(__file__), "checkpoints")
-            os.makedirs(ckpt_path, exist_ok=True)
-            torch.save(model.state_dict(), os.path.join(ckpt_path, f"gpt_epoch_{epoch+1}.pt"))
-            print(f"Checkpoint saved at epoch {epoch+1}")
-
-    print("Training completed.")
-
+        if val_dataloader is not None:
+            val_loss = val_loop(model, val_dataloader, device, pad_token_id)
+            print(f"Epoch {epoch} / {epochs}, Validation Loss: {val_loss:.4f}")
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                ckpt_path = os.path.join(save_dir, f"model_epoch{epoch}_valloss{val_loss:.4f}.pt")
+                torch.save(model.state_dict(), ckpt_path)
+        else:
+            # Save every epoch if no val set
+            ckpt_path = os.path.join(save_dir, f"model_epoch{epoch}_trainloss{train_loss:.4f}.pt")
+            torch.save(model.state_dict(), ckpt_path)
 
 if __name__ == "__main__":
-    train()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", type=str, default="config/model_config.yaml", help="Path to model config")
+    args = parser.parse_args()
+    main(args.config)
