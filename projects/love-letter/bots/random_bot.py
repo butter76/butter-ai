@@ -83,5 +83,5 @@ class RandomBot(LoveLetterBot):
 
 
 if __name__ == "__main__":
-    config = RandomBotConfig.from_args_and_yaml('./bots/random_bot.yaml')
+    config = RandomBotConfig.from_args_and_yaml('./config/random_bot.yaml')
     RandomBot(config).main()

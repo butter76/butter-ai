@@ -1,0 +1,72 @@
+# Project Instructions
+
+Use the project specification and guidelines as you build the app.
+
+Write the complete code for every step. Do not get lazy.
+
+Your goal is to completely finish whatever I ask for.
+
+## Overview
+
+This is python + Yarn monorepo that combines both Typed Python & Typescript. There are multiple projects in this repo located in its own folder in `projects/`, which may use code from `projects/common`. The `projects/common` folder is a library of code that can be used by any project.
+
+Each project is an AI project that researches a particular 2-player game to develop superhuman AI. Each project may have multiple orthogonal Machine Learning techniques to play the game. Each project also has an engine and tourney code, as well as a series of bots that use different techniques to play the game.
+
+## Tech Stack
+
+It is a requirement to use exactly these versions of the following tools:
+
+- Python 3.10
+- Yarn 1.22
+
+Python is aliased to `python3.10`. Be sure that `pip` is also installed (code will use `python3.10 -m pip`).
+
+## Project Structure
+
+### General Structure
+
+- `projects` - Projects
+  - `love-letter` - Love Letter project
+    - `bots` - Bots that play the game
+    - `config` - Contains .yaml files for the project
+    - `gpt` - A GPT-based approach to playing the game
+      - `checkpoints` - Checkpoints for the GPT model
+      - `models` - GPT model for the project
+      - `tests` - Tests for the GPT model
+    - `ts` - Typescript code for the project
+      - `engine` - Engine for the Love Letter game
+      - `tourney` - Tourney code for Love Letter
+    - `utils` - Utils for the project
+    - `.rules` - Game rules for love letter
+    - `package.json` - Yarn package.json for the project, also includes scripts for the project
+  - `common` - common code for the project, which can be used by any project
+
+
+## Rules
+
+Follow these rules when building the project.
+
+### General Rules
+
+Assume all python code is running from `projects/<project-name>`.
+- When importing from the `common` folder, use `common.<file>`
+- When importing from the current project (i.e.`projects/<project-name>/<module>`), use `<module>.<file>`.
+
+### Python Rules
+
+When working with python code, follow these rules. Always use `python3.10` to run python code. In particular, typing works differently in 3.10 than in previous versions of python, for example X | Y for types.
+
+Python code should be reasonably typed. All functions should have type annotations.
+
+
+### Pytorch Rules
+
+When using Pytorch, follow these rules. All intermediate tensors should have a comment next to them that specifies the shape of that tensor.
+
+```python
+padding_mask = (x != pad_token_id).float()  # [batch_size, seq_len]
+padding_mask = padding_mask.unsqueeze(-1)   # [batch_size, seq_len, 1]
+```
+
+In general, you should expect to have all models to use a modestly sized batch_size when possible.
+
