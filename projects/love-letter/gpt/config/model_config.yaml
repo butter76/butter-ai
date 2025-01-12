@@ -1,0 +1,23 @@
+model:
+	seq_length: 256
+	n_layer: 6
+	n_head: 8
+	n_embd: 256
+	dropout: 0.1
+	vocab_size: 37  # Based on the tokenizer's vocabulary size
+
+	# Memory usage estimates (for batch_size=32):
+	# - Model parameters: ~19MB
+	# - Optimizer states (AdamW): ~38MB
+	# - Attention cache: ~25MB
+	# - Gradients: ~19MB
+	# - Batch data and activations: ~50MB
+	# Total peak VRAM: ~150MB
+
+training:
+	batch_size: 32
+	learning_rate: 0.0001
+	max_epochs: 100
+	warmup_steps: 1000
+	weight_decay: 0.01
+	gradient_clip_val: 1.0
