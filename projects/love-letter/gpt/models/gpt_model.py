@@ -21,12 +21,14 @@ class MultiHeadAttention(nn.Module):
 		
 		# Calculate query, key, values for all heads in batch
 		q, k, v = self.c_attn(x).split(self.n_embd, dim=2)  # [B, T, C]
-		k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)  # [B, nh, T, hs]
-		q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)  # [B, nh, T, hs]
-		v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)  # [B, nh, T, hs]
+		
+		head_dim = C // self.n_head
+		k = k.view(B, T, self.n_head, head_dim).transpose(1, 2)  # [B, nh, T, hd]
+		q = q.view(B, T, self.n_head, head_dim).transpose(1, 2)  # [B, nh, T, hd]
+		v = v.view(B, T, self.n_head, head_dim).transpose(1, 2)  # [B, nh, T, hd]
 		
 		# Scaled dot-product attention
-		att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))  # [B, nh, T, T]
+		att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(head_dim))  # [B, nh, T, T]
 		
 		# Create causal mask (lower triangular)
 		causal_mask = torch.tril(torch.ones(T, T, device=x.device))  # [T, T]
@@ -34,25 +36,14 @@ class MultiHeadAttention(nn.Module):
 		# Create attention mask that combines causality and padding
 		if attention_mask is not None:
 			# attention_mask: [B, T] where True indicates valid tokens
-			# Create mask that prevents attending to future tokens and padding
-			# First, create mask for padding tokens
 			padding_mask = attention_mask.unsqueeze(1).unsqueeze(2)  # [B, 1, 1, T]
-			
-			# Create mask that combines causality and padding
-			# We need to mask out: 
-			# 1. Future tokens (via causal_mask)
-			# 2. Padding tokens in the key sequence (via padding_mask)
-			# 3. Queries from padding tokens (via padding_mask.transpose)
 			mask = (
 				causal_mask.unsqueeze(0) *                # [1, T, T] broadcast to batch
 				padding_mask *                            # [B, 1, 1, T] mask keys
 				padding_mask.unsqueeze(-1)                # [B, 1, T, 1] mask queries
 			)
-			
-			# Apply the combined mask
 			att = att.masked_fill(mask == 0, float('-inf'))
 		else:
-			# If no padding mask, just apply causal mask
 			att = att.masked_fill(causal_mask == 0, float('-inf'))
 		
 		# Attention weights
@@ -60,10 +51,12 @@ class MultiHeadAttention(nn.Module):
 		att = self.attn_dropout(att)
 		
 		# Compute attention output
-		y = att @ v  # [B, nh, T, hs]
+		y = att @ v  # [B, nh, T, hd]
 		
 		# Re-assemble all head outputs side by side
-		y = y.transpose(1, 2).contiguous().view(B, T, C)  # [B, T, C]
+		y = y.transpose(1, 2)  # [B, T, nh, hd]
+		y = y.reshape(B, T, C)  # [B, T, C]
+
 		
 		# Output projection
 		y = self.resid_dropout(self.c_proj(y))
