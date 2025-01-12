@@ -70,3 +70,6 @@ padding_mask = padding_mask.unsqueeze(-1)   # [batch_size, seq_len, 1]
 
 In general, you should expect to have all models to use a modestly sized batch_size when possible.
 
+### Config Rules
+
+Generally speaking all classes or functions with configuration should be split up into 1) defaults, 2) .yaml files, 3) command lines arguments. Command line arguments should have highest priority, followed by .yaml files, followed by defaults.

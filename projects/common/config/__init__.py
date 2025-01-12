@@ -1,4 +1,4 @@
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 import argparse
 import yaml
 from typing import TypeVar
@@ -7,10 +7,15 @@ T = TypeVar('T', bound='BaseConfig')
 
 @dataclass
 class BaseConfig:
+    """Base configuration class that supports YAML and command line arguments."""
+    def __post_init__(self):
+        """Called after dataclass initialization to perform any additional setup."""
+        pass
+
     @classmethod
     def from_yaml(cls: type[T], yaml_path: str) -> T:
         with open(yaml_path, 'r') as f:
-            config_dict = yaml.safe_load(f)
+            config_dict = yaml.safe_load(f) or {}  # Handle empty YAML files
         return cls(**config_dict)
     
     def save_yaml(self, yaml_path: str) -> None:
@@ -46,7 +51,7 @@ class BaseConfig:
         # Layer in YAML config if provided
         if config_loc:
             with open(config_loc, 'r') as f:
-                yaml_dict = yaml.safe_load(f)
+                yaml_dict = yaml.safe_load(f) or {}  # Handle None case
                 config_dict.update(yaml_dict)
         
         # Layer in command line arguments if provided

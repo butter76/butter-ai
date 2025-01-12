@@ -3,7 +3,8 @@
     "version": "1.0.0",
     "scripts": {
         "start:tourney": "ts-node ts/run-tourney.ts",
-        "test": "PYTHONPATH=$PYTHONPATH:. pytest"
+        "test": "PYTHONPATH=$PYTHONPATH:. pytest",
+        "train:gpt": "python3.10 -m gpt.train"
     },
     "dependencies": {
         "@types/node": "^22.10.5",

@@ -3,10 +3,12 @@
 import random
 import sys
 from typing import Any
+from dataclasses import dataclass
 from utils.bot import GameState, LoveLetterBot, Move, Hand
 from common.config import BaseConfig
 
 
+@dataclass
 class RandomBotConfig(BaseConfig):
     """Configuration class for RandomBot with debug option."""
     debug: bool = False

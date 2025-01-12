@@ -13,11 +13,11 @@ const bots = [
 ];
 
 const tourney = new LoveLetterTourney(bots, {
-    gamesPerMatch: 1, // n * (n - 1) times more than this
+    gamesPerMatch: 125000, // n * (n - 1) times more than this
     logDirectory: path.join(__dirname, "../.logs/bad-logs"),
     reportDirectory: path.join(__dirname, "../.reports"),
     timeLimitSeconds: 60,
-    chunkSize: 1,
+    chunkSize: 8,
     firstTo: 1
 });
 
