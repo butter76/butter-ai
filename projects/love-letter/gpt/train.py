@@ -30,19 +30,31 @@ class LoveLetterDataset(Dataset):
 	def __len__(self) -> int:
 		return len(self.examples)
 	
-	def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+	def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
 		tokens = self.examples[idx]
 		
-		# Truncate or pad sequence
-		if len(tokens) > self.max_seq_len:
-			tokens = tokens[:self.max_seq_len]
+		# Calculate actual sequence length
+		seq_len = min(len(tokens), self.max_seq_len)
+		
+		# Create left-padded sequence
+		if len(tokens) >= self.max_seq_len:
+			# Take last max_seq_len tokens
+			tokens = tokens[-self.max_seq_len:]
+			# All positions are valid (no padding)
+			attention_mask = torch.ones(self.max_seq_len - 1, dtype=torch.bool)
 		else:
-			tokens = tokens + [self.tokenizer.special_tokens['PAD']] * (self.max_seq_len - len(tokens))
+			# Add padding to the left
+			pad_length = self.max_seq_len - len(tokens)
+			tokens = [self.tokenizer.special_tokens['PAD']] * pad_length + tokens
+			# Create attention mask (False for padding, True for actual tokens)
+			attention_mask = torch.zeros(self.max_seq_len - 1, dtype=torch.bool)
+			attention_mask[-len(tokens)+1:] = True  # -1 because we drop last token for target
 		
-		x = torch.tensor(tokens[:-1], dtype=torch.long)
-		y = torch.tensor(tokens[1:], dtype=torch.long)
+		# Create input and target sequences
+		x = torch.tensor(tokens[:-1], dtype=torch.long)  # [seq_len-1]
+		y = torch.tensor(tokens[1:], dtype=torch.long)   # [seq_len-1]
 		
-		return x, y
+		return x, y, attention_mask
 
 def train():
 	# Load config
@@ -83,20 +95,22 @@ def train():
 		total_loss = 0
 		progress_bar = tqdm(dataloader, desc=f"Epoch {epoch+1}")
 		
-		for batch_idx, (x, y) in enumerate(progress_bar):
+		for batch_idx, (x, y, attention_mask) in enumerate(progress_bar):
 			# Move batch to device
-			x = x.to(device)  # [batch_size, seq_len]
-			y = y.to(device)  # [batch_size, seq_len]
-			
-			# Create attention mask for padding
-			mask = (x != tokenizer.special_tokens['PAD']).float()  # [batch_size, seq_len]
+			x = x.to(device)                    # [batch_size, seq_len]
+			y = y.to(device)                    # [batch_size, seq_len]
+			attention_mask = attention_mask.to(device)  # [batch_size, seq_len]
 			
 			# Forward pass
-			logits = model(x, mask)  # [batch_size, seq_len, vocab_size]
+			logits = model(x, attention_mask)   # [batch_size, seq_len, vocab_size]
+
+			
+			# Calculate loss only on non-padding tokens
 			loss = F.cross_entropy(
-				logits.view(-1, logits.size(-1)),
-				y.view(-1),
-				ignore_index=tokenizer.special_tokens['PAD']
+				logits.reshape(-1, logits.size(-1)),
+				y.reshape(-1),
+				ignore_index=tokenizer.special_tokens['PAD'],
+				reduction='mean'
 			)
 			
 			# Backward pass
@@ -110,14 +124,13 @@ def train():
 			progress_bar.set_postfix({'loss': total_loss / (batch_idx + 1)})
 		
 		# Save checkpoint
-		if (epoch + 1) % 5 == 0:
-			checkpoint_path = f"gpt/checkpoints/model_epoch_{epoch+1}.pt"
-			torch.save({
-				'epoch': epoch,
-				'model_state_dict': model.state_dict(),
-				'optimizer_state_dict': optimizer.state_dict(),
-				'loss': total_loss / len(dataloader),
-			}, checkpoint_path)
+		checkpoint_path = f"gpt/checkpoints/model_epoch_{epoch+1}.pt"
+		torch.save({
+			'epoch': epoch,
+			'model_state_dict': model.state_dict(),
+			'optimizer_state_dict': optimizer.state_dict(),
+			'loss': total_loss / len(dataloader),
+		}, checkpoint_path)
 
 if __name__ == "__main__":
 	train()

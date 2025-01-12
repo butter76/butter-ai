@@ -16,7 +16,7 @@ class MultiHeadAttention(nn.Module):
 		self.attn_dropout = nn.Dropout(config['dropout'])
 		self.resid_dropout = nn.Dropout(config['dropout'])
 		
-	def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+	def forward(self, x: torch.Tensor, attention_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
 		B, T, C = x.size()  # batch size, sequence length, embedding dimensionality
 		
 		# Calculate query, key, values for all heads in batch
@@ -27,10 +27,39 @@ class MultiHeadAttention(nn.Module):
 		
 		# Scaled dot-product attention
 		att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))  # [B, nh, T, T]
-		if mask is not None:
-			att = att.masked_fill(mask[:, None, None, :] == 0, float('-inf'))
-		att = F.softmax(att, dim=-1)
+		
+		# Create causal mask (lower triangular)
+		causal_mask = torch.tril(torch.ones(T, T, device=x.device))  # [T, T]
+		
+		# Create attention mask that combines causality and padding
+		if attention_mask is not None:
+			# attention_mask: [B, T] where True indicates valid tokens
+			# Create mask that prevents attending to future tokens and padding
+			# First, create mask for padding tokens
+			padding_mask = attention_mask.unsqueeze(1).unsqueeze(2)  # [B, 1, 1, T]
+			
+			# Create mask that combines causality and padding
+			# We need to mask out: 
+			# 1. Future tokens (via causal_mask)
+			# 2. Padding tokens in the key sequence (via padding_mask)
+			# 3. Queries from padding tokens (via padding_mask.transpose)
+			mask = (
+				causal_mask.unsqueeze(0) *                # [1, T, T] broadcast to batch
+				padding_mask *                            # [B, 1, 1, T] mask keys
+				padding_mask.unsqueeze(-1)                # [B, 1, T, 1] mask queries
+			)
+			
+			# Apply the combined mask
+			att = att.masked_fill(mask == 0, float('-inf'))
+		else:
+			# If no padding mask, just apply causal mask
+			att = att.masked_fill(causal_mask == 0, float('-inf'))
+		
+		# Attention weights
+		att = F.softmax(att, dim=-1)  # [B, nh, T, T]
 		att = self.attn_dropout(att)
+		
+		# Compute attention output
 		y = att @ v  # [B, nh, T, hs]
 		
 		# Re-assemble all head outputs side by side
@@ -53,8 +82,8 @@ class Block(nn.Module):
 			nn.Dropout(config['dropout']),
 		)
 
-	def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
-		x = x + self.attn(self.ln_1(x), mask)
+	def forward(self, x: torch.Tensor, attention_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+		x = x + self.attn(self.ln_1(x), attention_mask)
 		x = x + self.mlp(self.ln_2(x))
 		return x
 
@@ -83,7 +112,7 @@ class GPT(nn.Module):
 			torch.nn.init.zeros_(module.bias)
 			torch.nn.init.ones_(module.weight)
 
-	def forward(self, idx: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+	def forward(self, idx: torch.Tensor, attention_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
 		B, T = idx.size()
 		assert T <= self.max_seq_len, f"Cannot forward sequence of length {T}, max len is {self.max_seq_len}"
 		
@@ -94,7 +123,7 @@ class GPT(nn.Module):
 		
 		# Apply transformer blocks
 		for block in self.blocks:
-			x = block(x, mask)
+			x = block(x, attention_mask)
 		
 		x = self.ln_f(x)  # [B, T, C]
 		logits = self.head(x)  # [B, T, vocab_size]
