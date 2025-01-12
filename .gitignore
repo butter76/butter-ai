@@ -49,3 +49,4 @@ __pycache__
 # Project-specific files
 *.reports/
 *.logs/
+.old/
