@@ -1,13 +1,17 @@
 {
-    "extraPaths": ["./"],
-    "pythonVersion": "3.10",
-    "venvPath": ".",
-    "executionEnvironments": [
-      {
-        "root": "./projects",
-        "pythonVersion": "3.10",
-        "extraPaths": ["./"]
-      }
-    ]
-  }
-  
+  "extraPaths": ["./"],
+  "pythonVersion": "3.10",
+  "venvPath": ".",
+  "executionEnvironments": [
+    {
+      "root": "./projects",
+      "pythonVersion": "3.10",
+      "extraPaths": [
+        "./",
+        "./projects/common",
+        "./projects/love-letter",
+        "./projects"
+      ]
+    }
+  ]
+}
