@@ -1,18 +1,18 @@
 model:
-	n_layer: 6
-	n_head: 8
-	n_embd: 256
-	dropout: 0.1
-	max_seq_len: 256
-	vocab_size: 37  # Matches the tokenizer's vocabulary size
+  n_layer: 6
+  n_head: 8
+  n_embd: 256
+  dropout: 0.1
+  max_seq_len: 256
+  vocab_size: 37  # Matches the tokenizer's vocabulary size
 
 training:
-	batch_size: 32
-	learning_rate: 0.0003
-	weight_decay: 0.1
-	warmup_steps: 1000
-	max_epochs: 50
-	grad_clip: 1.0
-	
+  batch_size: 32
+  learning_rate: 0.0003
+  weight_decay: 0.1
+  warmup_steps: 1000
+  max_epochs: 50
+  grad_clip: 1.0
+
 data:
-	logs_dir: "projects/love-letter/.logs/bad-logs"
+  logs_dir: "./.logs/bad-logs"
