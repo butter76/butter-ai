@@ -1,0 +1,13 @@
+|game|WaveMoonWave-Game-0-1-15614-Bfirst
+|timestamp|2025-01-07T21:28:01.787Z
+|player|p1|RandomBot2
+|player|p2|RandomBot1
+|gamestart
+|p1|hidden|draw|5
+|p2|hidden|draw|3
+|turn|p1
+|p1|hidden|draw|1
+|yourmove|p1
+|p1|play|1|3
+|lose|p2|guard
+|end|p1|win
