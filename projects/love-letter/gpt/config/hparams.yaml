@@ -1,0 +1,18 @@
+model:
+  vocab_size: 128
+  n_layer: 4
+  n_head: 4
+  n_embd: 256
+  dropout: 0.1
+  block_size: 256
+
+training:
+  batch_size: 64
+  max_epochs: 5
+  learning_rate: 0.0003
+  betas: [0.9, 0.99]
+  weight_decay: 0.01
+  warmup_steps: 100
+  gradient_clip_val: 1.0
+  seed: 42
+  save_every: 1  # Save model checkpoint every N epochs
