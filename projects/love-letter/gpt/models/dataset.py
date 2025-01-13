@@ -49,7 +49,7 @@ class LoveLetterDataset(Dataset):
             tokens = tokens[-(self.seq_length + 1):]
 
         pad_length = self.seq_length - len(tokens) + 1
-        padded_tokens = [self.tokenizer.special_tokens['PAD']] * pad_length + tokens # [seq_length + 1]
+        padded_tokens = tokens + [self.tokenizer.special_tokens['PAD']] * pad_length # [seq_length + 1]
         
         # x: everything except the last token
         x = torch.tensor(padded_tokens[:-1], dtype=torch.long)  # [seq_length]

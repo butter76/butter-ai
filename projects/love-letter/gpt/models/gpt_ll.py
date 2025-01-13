@@ -51,13 +51,10 @@ class LoveLetterTransformer(nn.Module):
         causal_mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=1).bool()
         causal_mask = causal_mask.to(x.device)
         
-        # Create padding mask (1 for padding tokens, 0 for non-padding)
-        padding_mask = (x == pad_token_id)  # [batch_size, seq_len]
-        
         x_embedded = self.embedding(x)  # [batch_size, seq_len, d_model]
-        x_embedded = x_embedded + self.pos_encoding[-seq_len:, :]  # [batch_size, seq_len, d_model]
+        x_embedded = x_embedded + self.pos_encoding[:seq_len, :]  # [batch_size, seq_len, d_model]
         
-        features = self.transformer(x_embedded, mask=causal_mask, src_key_padding_mask=padding_mask)  # [batch_size, seq_len, d_model]
+        features = self.transformer(x_embedded, mask=causal_mask)  # [batch_size, seq_len, d_model]
         
         policy_logits = self.policy_head(features)  # [batch_size, seq_len, vocab_size]
         
@@ -70,7 +67,7 @@ class LoveLetterTransformer(nn.Module):
             # Left pad sequence to seq_length
             pad_length = self.config['seq_length'] - len(tokens)
             if pad_length > 0:
-                padded_tokens = [0] * pad_length + tokens
+                padded_tokens = tokens + [0] * pad_length
             else:
                 padded_tokens = tokens[-self.config['seq_length']:]
                 
@@ -79,7 +76,7 @@ class LoveLetterTransformer(nn.Module):
             
             # Get predictions
             logits = self(x)  # [1, seq_length, vocab_size]
-            logits = logits[:, -1, :] / temperature  # [1, vocab_size]
+            logits = logits[:, len(tokens) - 1, :] / temperature  # [1, vocab_size]
             
             # Sample from the distribution
             probs = F.softmax(logits, dim=-1)  # [1, vocab_size]

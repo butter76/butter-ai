@@ -25,12 +25,12 @@ def generate():
     ).to(device)
     
     # Load checkpoint
-    checkpoint = torch.load('checkpoints/random/model_epoch_130.pt')  # Adjust epoch number as needed
+    checkpoint = torch.load('checkpoints/model_epoch_10.pt')  # Adjust epoch number as needed
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
     
     # Starting prompt
-    prompt = "|gamestart\n|p1|hidden|draw|5\n|p2|hidden|draw|1\n|turn|p1\n|p1|hidden|draw|1\n|yourmove|p1\n|p1|play|1|6\n|turn|p2\n|p2|hidden|draw|4"
+    prompt = "|gamestart\n|p1|hidden|draw|1"
     tokens = tokenizer.tokenize(prompt)
 
 
@@ -38,6 +38,7 @@ def generate():
         output_tokens = model.generate(
             tokens,
             max_new_tokens=30,
+            temperature=1,
         )    
     # Convert back to text
     generated_text = tokenizer.detokenize(output_tokens)
