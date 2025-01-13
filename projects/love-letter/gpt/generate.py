@@ -1,6 +1,6 @@
 import torch
 import yaml
-from gpt.models.gpt import GPTModel
+from gpt.models.gpt_ll import LoveLetterTransformer
 from gpt.models.tokenizer import LoveLetterTokenizer
 
 def load_config(config_path):
@@ -19,10 +19,13 @@ def generate():
     
     # Initialize tokenizer and model
     tokenizer = LoveLetterTokenizer()
-    model = GPTModel(model_config).to(device)
+    model = LoveLetterTransformer(
+        config_path=config_path,
+        vocab_size=tokenizer.vocab_size,
+    ).to(device)
     
     # Load checkpoint
-    checkpoint = torch.load('checkpoints/model_epoch_1.pt')  # Adjust epoch number as needed
+    checkpoint = torch.load('checkpoints/model_epoch_10.pt')  # Adjust epoch number as needed
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
     

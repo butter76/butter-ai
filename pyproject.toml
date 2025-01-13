@@ -15,10 +15,10 @@ dependencies = [
 
 [project.optional-dependencies]
 gpu = [
-    "torch==2.1.2",  # Base package - CUDA version will be installed via URL
+    "torch==2.5.1",  # Base package - CUDA version will be installed via URL
 ]
 default = [
-    "torch==2.1.2",  # CPU version
+    "torch==2.5.1",  # CPU version
 ]
 
 [tool.setuptools]

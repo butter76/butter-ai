@@ -1,20 +1,17 @@
 model:
-  # Model hyperparams
-  vocab_size: 37              # use 36 or more if needed; check tokenizer for final count
-  seq_length: 256             # maximum sequence length (left-pad if less)
-  n_layer: 4
-  n_head: 4
   d_model: 128
-  d_ff: 512
+  nhead: 4
+  num_layers: 3
+  seq_length: 256
   dropout: 0.1
-  lr: 0.0001
-  batch_size: 64
-  epochs: 5
-  pad_token_id: 0
-  device: "cuda"       # use "cuda" if available, otherwise fallback in code
-  save_dir: "./checkpoints"
+  device: cuda
 
 data:
-  train_logs_dir: "../../../love-letter-logs/logs/"
-  max_logs: 100000
-  # val_logs_dir: "../../../love-letter-logs/val_logs/"   # Provide a separate dir if available
+  data_dir: "../../../love-letter-logs/logs"
+
+training:
+  batch_size: 64
+  epochs: 200
+  learning_rate: 0.001
+  weight_decay: 0.01
+  save_every: 5
