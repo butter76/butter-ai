@@ -25,7 +25,7 @@ def generate():
     ).to(device)
     
     # Load checkpoint
-    checkpoint = torch.load('checkpoints/model_epoch_10.pt')  # Adjust epoch number as needed
+    checkpoint = torch.load('checkpoints/random/model_epoch_130.pt')  # Adjust epoch number as needed
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
     

@@ -8,6 +8,9 @@ model:
 
 data:
   data_dir: "../../../love-letter-logs/logs"
+  train_split: 0.95
+  val_split: 0.05
+  max_logs: 100000
 
 training:
   batch_size: 64
