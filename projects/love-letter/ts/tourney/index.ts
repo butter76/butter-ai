@@ -36,6 +36,7 @@ export interface TourneyOptions {
   tourneyName?: string;
   chunkSize?: number;
   firstTo?: number;
+  debug?: boolean;  // Add debug flag
 }
 
 const DEFAULT_ELO = 1500;
@@ -85,21 +86,24 @@ async function getBotMove(currentPlayer: number, botProcess: BotProcess, gameLog
 }
 
 export class LoveLetterTourney {
-    private bots: BotSpec[];
-    private options: TourneyOptions;
-    private results: Map<string, MatchResult>;
-    private eloRatings: Map<string, number>;
+  private bots: BotSpec[];
+  private options: TourneyOptions;
+  private results: Map<string, MatchResult>;
+  private eloRatings: Map<string, number>;
+  private debug: boolean;
 
-    constructor(bots: BotSpec[], options?: TourneyOptions) {
-        this.bots = bots;
-        this.options = {
-            gamesPerMatch: 100,
-            logDirectory: "./logs",
-            reportDirectory: "./reports",
-            timeLimitSeconds: 1,
-            tourneyName: generateRandomTourneyName(),
-            ...options
-        };
+  constructor(bots: BotSpec[], options?: TourneyOptions) {
+    this.bots = bots;
+    this.options = {
+      gamesPerMatch: 100,
+      logDirectory: "./logs",
+      reportDirectory: "./reports",
+      timeLimitSeconds: 1,
+      tourneyName: generateRandomTourneyName(),
+      debug: false,  // Add default debug value
+      ...options
+    };
+    this.debug = this.options.debug || false;
         this.results = new Map();
         this.eloRatings = new Map(bots.map(bot => [bot.name, DEFAULT_ELO]));
     }
@@ -176,9 +180,11 @@ export class LoveLetterTourney {
     }
 
     private async playOneGame(p1: BotSpec, p2: BotSpec, gameNumber: string, logDir: string, firstTo = 10): Promise<void> {
+      if (this.debug) {
+        console.log(`[DEBUG][Tourney] Starting game ${gameNumber} between ${p1.name} and ${p2.name}`);
+      }
 
-
-        const bot1Process = this.spawnBot(p1);
+      const bot1Process = this.spawnBot(p1);
         const bot2Process = this.spawnBot(p2);
         const botProcesses = [bot1Process, bot2Process];
 
@@ -187,11 +193,15 @@ export class LoveLetterTourney {
             let w1 = 0;
             let w2 = 0;
             while (w1 < firstTo && w2 < firstTo) {
-                const logLines: string[] = [];;  // Clear log lines for each sub-game
+                if (this.debug) {
+                  console.log(`[DEBUG][Tourney] Starting subgame ${subGameNumber} (${w1}-${w2})`);
+                }
+                const logLines: string[] = [];  // Clear log lines for each sub-game
                 const slot1 = (subGameNumber % 2 === 0 ? p1 : p2);
                 const slot2 = (subGameNumber % 2 === 0 ? p2 : p1);
                 const engine = new LoveLetterEngine(2, `${gameNumber}-${subGameNumber}`, {
-                    logCallback: (line) => logLines.push(line)
+                  logCallback: (line) => logLines.push(line),
+                  debug: this.debug  // Pass debug flag to engine
                 });
                 engine.startGameLog([slot1.name, slot2.name]);
 

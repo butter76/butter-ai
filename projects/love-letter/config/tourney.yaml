@@ -1,0 +1,15 @@
+# Tournament Configuration
+bots:
+  - name: "RandomBot1"
+    command: "python3.11 -m bots.random_bot"
+  - name: "RandomBot2"
+    command: "python3.11 -m bots.random_bot"
+
+options:
+  gamesPerMatch: 125000
+  logDirectory: "./.logs"
+  reportDirectory: "./.reports"
+  timeLimitSeconds: 60
+  chunkSize: 8
+  firstTo: 1
+  debug: false

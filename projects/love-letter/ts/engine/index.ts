@@ -18,6 +18,7 @@ export interface PlayerState {
 export interface GameOptions {
   seed?: string;  // optional random seed
   logCallback?: (line: string) => void;
+  debug?: boolean;  // Add debug flag
 }
 
 export class LoveLetterEngine {
@@ -28,6 +29,7 @@ export class LoveLetterEngine {
   private gameId: string;
   private removedCard: number | null;
   private gameEnded: boolean;
+  private debug: boolean;
 
   constructor(private numPlayers: number = 2, gameId: string, options?: GameOptions) {
     // Initialize random deck of cards (16 total).
@@ -57,6 +59,7 @@ export class LoveLetterEngine {
     this.gameId = gameId;
     this.currentPlayerIndex = 0;
     this.gameEnded = false;
+    this.debug = options?.debug || false;
   }
 
   private generateDeck(): number[] {
@@ -99,6 +102,9 @@ export class LoveLetterEngine {
 
   public log(line: string) {
     this.logCallback(line);
+    if (this.debug) {
+      console.log(`[DEBUG][Engine][${this.gameId}] ${line}`);
+    }
   }
 
   public getCurrentPlayerIndex() {
