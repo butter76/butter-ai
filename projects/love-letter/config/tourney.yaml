@@ -12,4 +12,7 @@ options:
   timeLimitSeconds: 60
   chunkSize: 8
   firstTo: 1
-  debug: false
+  tourneyName: "LoveLetterTourney"
+  debug:
+    tourney: false  # Debug output for tournament operations
+    engine: false   # Debug output for game engine

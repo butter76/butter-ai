@@ -17,8 +17,11 @@ interface TourneyConfig {
         timeLimitSeconds: number;
         chunkSize: number;
         firstTo: number;
-        debug: boolean;
         tourneyName: string;
+        debug: {
+            tourney: boolean;
+            engine: boolean;
+        };
     };
 }
 
@@ -30,8 +33,9 @@ interface CommandLineArgs {
     timeLimitSeconds?: number;
     chunkSize?: number;
     firstTo?: number;
-    debug?: boolean;
     tourneyName?: string;
+    debugTourney?: boolean;
+    debugEngine?: boolean;
     bots?: string;  // Add bots to command line args
 }
 
@@ -49,8 +53,9 @@ const argv = yargs(hideBin(process.argv))
         'timeLimitSeconds': { type: 'number', describe: 'Time limit per move in seconds' },
         'chunkSize': { type: 'number', describe: 'Number of parallel games' },
         'firstTo': { type: 'number', describe: 'First to N wins' },
-        'debug': { type: 'boolean', describe: 'Enable debug logging' },
         'tourneyName': { type: 'string', describe: 'Tournament name' },
+        'debugTourney': { type: 'boolean', describe: 'Enable tournament debug logging' },
+        'debugEngine': { type: 'boolean', describe: 'Enable engine debug logging' },
         'bots': { 
             type: 'string', 
             describe: 'Bot configurations in format "name1:command1,name2:command2"'
@@ -85,8 +90,11 @@ const options = {
     ...(argv.timeLimitSeconds !== undefined && { timeLimitSeconds: argv.timeLimitSeconds }),
     ...(argv.chunkSize !== undefined && { chunkSize: argv.chunkSize }),
     ...(argv.firstTo !== undefined && { firstTo: argv.firstTo }),
-    ...(argv.debug !== undefined && { debug: argv.debug }),
-    ...(argv.tourneyName !== undefined && { tourneyName: argv.tourneyName })
+    ...(argv.tourneyName !== undefined && { tourneyName: argv.tourneyName }),
+    debug: {
+        tourney: argv.debugTourney ?? config.options.debug?.tourney ?? false,
+        engine: argv.debugEngine ?? config.options.debug?.engine ?? false
+    }
 };
 
 const tourney = new LoveLetterTourney(bots, options);

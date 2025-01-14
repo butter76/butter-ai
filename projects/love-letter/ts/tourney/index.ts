@@ -36,7 +36,10 @@ export interface TourneyOptions {
   tourneyName?: string;
   chunkSize?: number;
   firstTo?: number;
-  debug?: boolean;  // Add debug flag
+  debug?: {
+    tourney: boolean;
+    engine: boolean;
+  };
 }
 
 const DEFAULT_ELO = 1500;
@@ -90,7 +93,14 @@ export class LoveLetterTourney {
   private options: TourneyOptions;
   private results: Map<string, MatchResult>;
   private eloRatings: Map<string, number>;
-  private debug: boolean;
+  private debugTourney: boolean;
+  private debugEngine: boolean;
+
+  private log(message: string) {
+    if (this.debugTourney) {
+      console.log(`[DEBUG][Tourney] ${message}`);
+    }
+  }
 
   constructor(bots: BotSpec[], options?: TourneyOptions) {
     this.bots = bots;
@@ -100,13 +110,17 @@ export class LoveLetterTourney {
       reportDirectory: "./reports",
       timeLimitSeconds: 1,
       tourneyName: generateRandomTourneyName(),
-      debug: false,  // Add default debug value
+      debug: {
+        tourney: false,
+        engine: false
+      },
       ...options
     };
-    this.debug = this.options.debug || false;
-        this.results = new Map();
-        this.eloRatings = new Map(bots.map(bot => [bot.name, DEFAULT_ELO]));
-    }
+    this.debugTourney = this.options.debug?.tourney || false;
+    this.debugEngine = this.options.debug?.engine || false;
+    this.results = new Map();
+    this.eloRatings = new Map(bots.map(bot => [bot.name, DEFAULT_ELO]));
+  }
 
     private getMatchKey(p1: string, p2: string): string {
       // Always use alphabetical order to ensure consistent key regardless of who goes first
@@ -180,28 +194,24 @@ export class LoveLetterTourney {
     }
 
     private async playOneGame(p1: BotSpec, p2: BotSpec, gameNumber: string, logDir: string, firstTo = 10): Promise<void> {
-      if (this.debug) {
-        console.log(`[DEBUG][Tourney] Starting game ${gameNumber} between ${p1.name} and ${p2.name}`);
-      }
+        this.log(`Starting game ${gameNumber} between ${p1.name} and ${p2.name}`);
 
-      const bot1Process = this.spawnBot(p1);
+        const bot1Process = this.spawnBot(p1);
         const bot2Process = this.spawnBot(p2);
         const botProcesses = [bot1Process, bot2Process];
 
         try {
-            let subGameNumber = 0;  // Changed from const to let since it needs to increment
+            let subGameNumber = 0;
             let w1 = 0;
             let w2 = 0;
             while (w1 < firstTo && w2 < firstTo) {
-                if (this.debug) {
-                  console.log(`[DEBUG][Tourney] Starting subgame ${subGameNumber} (${w1}-${w2})`);
-                }
-                const logLines: string[] = [];  // Clear log lines for each sub-game
+                this.log(`Starting subgame ${subGameNumber} (Score: ${w1}-${w2})`);
+                const logLines: string[] = [];
                 const slot1 = (subGameNumber % 2 === 0 ? p1 : p2);
                 const slot2 = (subGameNumber % 2 === 0 ? p2 : p1);
                 const engine = new LoveLetterEngine(2, `${gameNumber}-${subGameNumber}`, {
-                  logCallback: (line) => logLines.push(line),
-                  debug: this.debug  // Pass debug flag to engine
+                    logCallback: (line) => logLines.push(line),
+                    debug: this.debugEngine
                 });
                 engine.startGameLog([slot1.name, slot2.name]);
 
@@ -222,8 +232,10 @@ export class LoveLetterTourney {
 
                     } catch (error) {
                         if (error === 'timeout') {
+                            this.log(`Player ${currentPlayer + 1} (${botProcesses[(currentPlayer + subGameNumber) % 2].name}) lost due to timeout`);
                             engine.log(`|lose|p${currentPlayer + 1}|timeout`);
                         } else {
+                            this.log(`Player ${currentPlayer + 1} (${botProcesses[(currentPlayer + subGameNumber) % 2].name}) lost due to invalid move`);
                             engine.log(`|lose|p${currentPlayer + 1}|invalid`);
                         }
                         engine.log(`|end|p${(currentPlayer + 1) % 2 + 1}|win`);
@@ -243,22 +255,29 @@ export class LoveLetterTourney {
                 if (winner === 'p1') {
                     if (subGameNumber % 2 === 0) {
                         w1++;
+                        this.log(`${slot1.name} won subgame ${subGameNumber} as Player 1 (New score: ${w1}-${w2})`);
                     } else {
                         w2++;
+                        this.log(`${slot2.name} won subgame ${subGameNumber} as Player 1 (New score: ${w1}-${w2})`);
                     }
                 } else {
                     if (subGameNumber % 2 === 0) {
                         w2++;
+                        this.log(`${slot2.name} won subgame ${subGameNumber} as Player 2 (New score: ${w1}-${w2})`);
                     } else {
                         w1++;
+                        this.log(`${slot1.name} won subgame ${subGameNumber} as Player 2 (New score: ${w1}-${w2})`);
                     }
                 }
-                
-                subGameNumber++;  // Increment the sub-game counter
+            
+                subGameNumber++;
             }
             const p1Won = w1 === firstTo;
             const isBot1First = gameNumber.endsWith('Afirst');
             this.updateResults(p1.name, p2.name, isBot1First, p1Won);
+            
+            this.log(`Game ${gameNumber} finished: ${p1Won ? p1.name : p2.name} won (Final score: ${w1}-${w2})`);
+
         } finally {
             bot1Process.process.kill();
             bot2Process.process.kill();
