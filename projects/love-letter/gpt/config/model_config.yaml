@@ -20,3 +20,9 @@ training:
   save_every: 5
   num_workers: 8
   prefetch_factor: 2
+
+generation:
+  temperature: 1.0
+  max_tokens: 30
+  checkpoint_path: "gpt/checkpoints/model_latest.pt"
+  prompt: "|gamestart\n|p1|hidden|draw|1"

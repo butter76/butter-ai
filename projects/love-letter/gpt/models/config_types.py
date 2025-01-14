@@ -25,7 +25,14 @@ class TrainingConfig(TypedDict):
 	num_workers: int
 	prefetch_factor: int
 
+class GenerationConfig(TypedDict):
+	temperature: float
+	max_tokens: int
+	checkpoint_path: str
+	prompt: str
+
 class Config(TypedDict):
 	model: ModelConfig
 	data: DataConfig
 	training: TrainingConfig
+	generation: GenerationConfig

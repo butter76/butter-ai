@@ -157,7 +157,8 @@ def update_config_with_args(config: Config, args: argparse.Namespace) -> Config:
 	updated_config = Config(
 		model=config['model'],
 		data=config['data'],
-		training=config['training']
+		training=config['training'],
+		generation=config['generation']
 	)
 	
 	# Model architecture updates
