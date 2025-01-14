@@ -1,5 +1,7 @@
 import os
 import torch
+
+from gpt.models.config_types import Config
 torch.set_float32_matmul_precision('high')
 torch.set_printoptions(profile="full")
 from torch.utils.data import DataLoader
@@ -9,10 +11,8 @@ from gpt.models.tokenizer import LoveLetterTokenizer
 from gpt.models.cli import get_training_parser, load_config, update_config_with_args
 from tqdm import tqdm
 
-def train(args):
+def train(config: Config):
     # Load and update config with CLI arguments
-    config = load_config(args.config)
-    config = update_config_with_args(config, args)
     
     model_config = config['model']
     data_config = config['data']
@@ -190,4 +190,7 @@ def train(args):
 if __name__ == "__main__":
     parser = get_training_parser()
     args = parser.parse_args()
-    train(args)
+
+    config = load_config(args.config)
+    config = update_config_with_args(config, args)
+    train(config)
