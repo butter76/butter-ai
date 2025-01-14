@@ -2,7 +2,7 @@ import argparse
 from typing import TypedDict
 import yaml
 from pathlib import Path
-from .config_types import ModelConfig, DataConfig, TrainingConfig, Config
+from .config_types import ModelConfig, DataConfig, TrainingConfig, GenerationConfig, Config
 
 def load_config(config_path: str) -> Config:
 	"""Load and parse the YAML config file."""
@@ -126,27 +126,33 @@ def get_training_parser() -> argparse.ArgumentParser:
 def get_generate_parser() -> argparse.ArgumentParser:
 	"""Create argument parser for generation with specific generation arguments."""
 	parser = get_base_parser()
+	
+	# Load default config for defaults
+	default_config = load_config('gpt/config/model_config.yaml')
+	generation_config = default_config.get('generation', {})
+	
 	parser.add_argument(
 		'--checkpoint',
 		type=str,
+		default=generation_config.get('checkpoint_path'),
 		help='Path to model checkpoint'
 	)
 	parser.add_argument(
 		'--temperature',
 		type=float,
-		default=1.0,
+		default=generation_config.get('temperature', 1.0),
 		help='Sampling temperature'
 	)
 	parser.add_argument(
 		'--max-tokens',
 		type=int,
-		default=30,
+		default=generation_config.get('max_tokens', 30),
 		help='Maximum number of tokens to generate'
 	)
 	parser.add_argument(
 		'--prompt',
 		type=str,
-		default='|gamestart\n|p1|hidden|draw|1',
+		default=generation_config.get('prompt', '|gamestart\n|p1|hidden|draw|1'),
 		help='Starting prompt for generation'
 	)
 	return parser
@@ -158,7 +164,7 @@ def update_config_with_args(config: Config, args: argparse.Namespace) -> Config:
 		model=config['model'],
 		data=config['data'],
 		training=config['training'],
-		generation=config['generation']
+		generation=config.get('generation')
 	)
 	
 	# Model architecture updates
@@ -183,7 +189,10 @@ def update_config_with_args(config: Config, args: argparse.Namespace) -> Config:
 	if hasattr(args, 'learning_rate') and args.learning_rate is not None:
 		updated_config['training']['learning_rate'] = args.learning_rate
 	if hasattr(args, 'checkpoint') and args.checkpoint is not None:
-		updated_config['training']['checkpoint_path'] = args.checkpoint
+		if 'training' in updated_config:
+			updated_config['training']['checkpoint_path'] = args.checkpoint
+		if 'generation' in updated_config:
+			updated_config['generation']['checkpoint_path'] = args.checkpoint
 	if hasattr(args, 'save_every') and args.save_every is not None:
 		updated_config['training']['save_every'] = args.save_every
 	if hasattr(args, 'num_workers') and args.num_workers is not None:
@@ -202,5 +211,13 @@ def update_config_with_args(config: Config, args: argparse.Namespace) -> Config:
 		updated_config['data']['val_split'] = args.val_split
 	if hasattr(args, 'max_logs') and args.max_logs is not None:
 		updated_config['data']['max_logs'] = args.max_logs
+		
+	# Generation specific updates
+	if hasattr(args, 'temperature') and args.temperature is not None:
+		updated_config['generation']['temperature'] = args.temperature
+	if hasattr(args, 'max_tokens') and args.max_tokens is not None:
+		updated_config['generation']['max_tokens'] = args.max_tokens
+	if hasattr(args, 'prompt') and args.prompt is not None:
+		updated_config['generation']['prompt'] = args.prompt
 	
 	return updated_config
