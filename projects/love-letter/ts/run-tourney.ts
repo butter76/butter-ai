@@ -17,7 +17,8 @@ interface TourneyConfig {
         timeLimitSeconds: number;
         chunkSize: number;
         firstTo: number;
-        debug: boolean;  // Add debug flag
+        debug: boolean;
+        tourneyName: string;
     };
 }
 
@@ -29,7 +30,9 @@ interface CommandLineArgs {
     timeLimitSeconds?: number;
     chunkSize?: number;
     firstTo?: number;
-    debug?: boolean;  // Add debug flag
+    debug?: boolean;
+    tourneyName?: string;
+    bots?: string;  // Add bots to command line args
 }
 
 // Parse command line arguments with proper typing
@@ -46,7 +49,12 @@ const argv = yargs(hideBin(process.argv))
         'timeLimitSeconds': { type: 'number', describe: 'Time limit per move in seconds' },
         'chunkSize': { type: 'number', describe: 'Number of parallel games' },
         'firstTo': { type: 'number', describe: 'First to N wins' },
-        'debug': { type: 'boolean', describe: 'Enable debug logging' }
+        'debug': { type: 'boolean', describe: 'Enable debug logging' },
+        'tourneyName': { type: 'string', describe: 'Tournament name' },
+        'bots': { 
+            type: 'string', 
+            describe: 'Bot configurations in format "name1:command1,name2:command2"'
+        }
     })
     .help()
     .parseSync() as CommandLineArgs;
@@ -55,6 +63,18 @@ const argv = yargs(hideBin(process.argv))
 const configPath = path.resolve(__dirname, argv.config);
 const configFile = fs.readFileSync(configPath, 'utf8');
 const config = yaml.load(configFile) as TourneyConfig;
+
+// Parse bot configurations from command line if provided
+let bots = config.bots;
+if (argv.bots) {
+    bots = argv.bots.split(',').map(botSpec => {
+        const [name, command] = botSpec.split(':');
+        if (!name || !command) {
+            throw new Error(`Invalid bot specification: ${botSpec}. Format should be "name:command"`);
+        }
+        return { name, command };
+    });
+}
 
 // Override config with command line arguments
 const options = {
@@ -66,10 +86,10 @@ const options = {
     ...(argv.chunkSize !== undefined && { chunkSize: argv.chunkSize }),
     ...(argv.firstTo !== undefined && { firstTo: argv.firstTo }),
     ...(argv.debug !== undefined && { debug: argv.debug }),
+    ...(argv.tourneyName !== undefined && { tourneyName: argv.tourneyName })
 };
 
-
-const tourney = new LoveLetterTourney(config.bots, options);
+const tourney = new LoveLetterTourney(bots, options);
 
 tourney.run().then(() => {
     console.log("Tournament complete! Check the logs directory for results.");
