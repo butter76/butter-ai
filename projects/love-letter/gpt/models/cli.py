@@ -157,6 +157,45 @@ def get_generate_parser() -> argparse.ArgumentParser:
 	)
 	return parser
 
+def get_validate_parser() -> argparse.ArgumentParser:
+    """Create argument parser for validation with specific validation arguments."""
+    parser = get_base_parser()
+    
+    # Validation specific arguments
+    parser.add_argument(
+        '--checkpoint',
+        type=str,
+        required=True,
+        help='Path to model checkpoint to evaluate'
+    )
+    parser.add_argument(
+        '--batch-size',
+        type=int,
+        help='Override batch size from config'
+    )
+    parser.add_argument(
+        '--data-dir',
+        type=str,
+        help='Override data directory path'
+    )
+    parser.add_argument(
+        '--data-type',
+        type=str,
+        choices=['mixed', 'pov', 'full'],
+        help='Override data type (mixed or pov or full)'
+    )
+    parser.add_argument(
+        '--num-workers',
+        type=int,
+        help='Override number of workers for data loading'
+    )
+    parser.add_argument(
+        '--prefetch-factor',
+        type=int,
+        help='Override prefetch factor for data loading'
+    )
+    return parser
+
 def update_config_with_args(config: Config, args: argparse.Namespace) -> Config:
 	"""Update config with command line arguments if they are provided."""
 	# Create a new config to avoid modifying the original

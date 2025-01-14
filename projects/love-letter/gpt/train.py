@@ -91,48 +91,58 @@ def train(args):
     for epoch in range(1, training_config['epochs'] + 1):
         model.train()
         total_loss = 0
+        total_tokens = 0
         pbar = tqdm(enumerate(train_dataloader), total=len(train_dataloader), desc=f'Epoch {epoch}')
         for batch_idx, (x, y) in pbar:
             x, y = x.to(device), y.to(device)
             
             # Forward pass
             logits = model(x)
+            
             # Compute loss
             loss = torch.nn.functional.cross_entropy(
                 logits.view(-1, logits.size(-1)),
                 y.view(-1),
-                ignore_index=tokenizer.special_tokens['PAD']
+                ignore_index=tokenizer.special_tokens['PAD'],
+                reduction='sum'
             )
+            
+            # Count non-padding tokens
+            non_pad_mask = (y != tokenizer.special_tokens['PAD'])
+            num_tokens = non_pad_mask.sum().item()
             
             # Backward pass
             optimizer.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
-
-            # Inside your training loop, after optimizer.step():
             scheduler.step()
 
-            # Update your logging to track the learning rate:
+            # Update totals
+            total_loss += loss.item()
+            total_tokens += num_tokens
+            
+            # Update progress bar
+            avg_loss = total_loss / total_tokens if total_tokens > 0 else 0
             pbar.set_postfix({
-                'loss': f'{loss.item():.4f}',
+                'avg_loss': f'{avg_loss:.4f}',
                 'lr': f'{scheduler.get_last_lr()[0]:.6f}'
             })
-            
-            total_loss += loss.item()
         
         # Log epoch metrics
-        avg_loss = total_loss / len(train_dataloader)
+        avg_loss = total_loss / total_tokens if total_tokens > 0 else 0
         print({
             "epoch_loss": avg_loss,
-            "epoch": epoch
+            "epoch": epoch,
+            "total_tokens": total_tokens
         })
         
-        # Save checkpoint
+        # Save checkpoint and run validation
         if epoch % training_config['save_every'] == 0:
-            # Add validation loop after training loop and before checkpoint saving
             model.eval()
             val_loss = 0
+            val_tokens = 0
+            
             with torch.no_grad():
                 val_pbar = tqdm(enumerate(val_dataloader), total=len(val_dataloader), desc=f'Validation Epoch {epoch}')
                 for batch_idx, (x, y) in val_pbar:
@@ -140,21 +150,35 @@ def train(args):
                     
                     # Forward pass
                     logits = model(x)
+                    
                     # Compute loss
                     loss = torch.nn.functional.cross_entropy(
                         logits.view(-1, logits.size(-1)),
                         y.view(-1),
-                        ignore_index=tokenizer.special_tokens['PAD']
+                        ignore_index=tokenizer.special_tokens['PAD'],
+                        reduction='sum'
                     )
                     
+                    # Count non-padding tokens
+                    non_pad_mask = (y != tokenizer.special_tokens['PAD'])
+                    num_tokens = non_pad_mask.sum().item()
+                    
                     val_loss += loss.item()
-                    val_pbar.set_postfix({'val_loss': f'{loss.item():.4f}'})
+                    val_tokens += num_tokens
+                    
+                    # Update progress bar
+                    avg_val_loss = val_loss / val_tokens if val_tokens > 0 else 0
+                    val_pbar.set_postfix({'avg_val_loss': f'{avg_val_loss:.4f}'})
 
-                avg_val_loss = val_loss / len(val_dataloader)
+                avg_val_loss = val_loss / val_tokens if val_tokens > 0 else 0
+                perplexity = torch.exp(torch.tensor(avg_val_loss)).item()
                 print({
                     "epoch": epoch,
                     "train_loss": avg_loss,
-                    "val_loss": avg_val_loss
+                    "val_loss": avg_val_loss,
+                    "val_perplexity": perplexity,
+                    "train_tokens": total_tokens,
+                    "val_tokens": val_tokens
                 })
             torch.save({
                 'epoch': epoch,

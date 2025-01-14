@@ -5,7 +5,9 @@
         "start:tourney": "ts-node ts/run-tourney.ts",
         "test": "PYTHONPATH=$PYTHONPATH:. pytest",
         "gpt:train": "python3.11 -m gpt.train",
-        "gpt:generate": "python3.11 -m gpt.generate"
+        "gpt:generate": "python3.11 -m gpt.generate",
+        "gpt:validate": "python3.11 -m gpt.validate"
+
     },
     "dependencies": {
         "@types/node": "^22.10.5",
