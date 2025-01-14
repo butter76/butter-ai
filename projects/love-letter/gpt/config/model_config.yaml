@@ -7,7 +7,7 @@ model:
   device: cuda
 
 data:
-  data_dir: "../../../love-letter-logs/logs"
+  data_dir: "./.logs/test"
   train_split: 0.95
   val_split: 0.05
   type: mixed
@@ -18,4 +18,5 @@ training:
   learning_rate: 0.001
   weight_decay: 0.01
   save_every: 5
-  checkpoint_path: "gpt/checkpoints/full/model_epoch_55.pt"
+  num_workers: 8
+  prefetch_factor: 2

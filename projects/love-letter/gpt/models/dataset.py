@@ -1,25 +1,21 @@
 import random
-import re
 import torch
 from torch.utils.data import Dataset
 import os
 from typing import List, Tuple
 from .tokenizer import LoveLetterTokenizer
-import yaml
+from .config_types import ModelConfig, DataConfig
 
 class LoveLetterDataset(Dataset):
-    def __init__(self, tokenizer: LoveLetterTokenizer, config_path):
+    def __init__(self, tokenizer: LoveLetterTokenizer, data_config: DataConfig, model_config: ModelConfig):
         self.tokenizer = tokenizer
-        
-        # Load config
-        with open(config_path, 'r') as f:
-            config = yaml.safe_load(f)
-        self.seq_length = config['model']['seq_length']
+        self.seq_length = model_config['seq_length']
 
-        max_logs = config['data']['max_logs'] if 'max_logs' in config['data'] else None
-        data_dir = config['data']['data_dir']
-        self.config = config['data']
+        max_logs = data_config.get('max_logs')
+        data_dir = data_config['data_dir']
+        self.config = data_config
         count = 0
+
         
         self.examples: List[List[int]] = []
         for filename in os.listdir(data_dir):
@@ -29,7 +25,7 @@ class LoveLetterDataset(Dataset):
                     lines = text.split('\n')
                     lines = lines[4:]
 
-                    if (random.random() < 2.0 / 3.0 and config['data']['type'] == 'mixed') or config['data']['type'] == 'pov':
+                    if (random.random() < 2.0 / 3.0 and data_config['type'] == 'mixed') or data_config['type'] == 'pov':
                         # Randomly choose which player's hidden info to remove
                         remove_p1_hidden = random.random() < 0.5
                         my_player = 'p2' if remove_p1_hidden else 'p1'

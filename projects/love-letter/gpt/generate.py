@@ -1,18 +1,13 @@
 import torch
-import yaml
 from gpt.models.gpt_ll import LoveLetterTransformer
 from gpt.models.tokenizer import LoveLetterTokenizer
+from gpt.models.cli import get_generate_parser, load_config, update_config_with_args
 
-def load_config(config_path):
-    with open(config_path, 'r') as f:
-        return yaml.safe_load(f)
-
-def generate():
-    # Load configuration
-    config_path = 'gpt/config/model_config.yaml'
-    config = load_config(config_path)
+def generate(args):
+    # Load and update config
+    config = load_config(args.config)
+    config = update_config_with_args(config, args)
     model_config = config['model']
-    seq_length = model_config['seq_length']
     
     # Set device
     device = torch.device(model_config['device'] if torch.cuda.is_available() else "cpu")
@@ -20,25 +15,24 @@ def generate():
     # Initialize tokenizer and model
     tokenizer = LoveLetterTokenizer()
     model = LoveLetterTransformer(
-        config_path=config_path,
+        config_path=args.config,
         vocab_size=tokenizer.vocab_size,
     ).to(device)
     
     # Load checkpoint
-    checkpoint = torch.load('gpt/checkpoints/mixed/model_epoch_150.pt')  # Adjust epoch number as needed
+    checkpoint_path = args.checkpoint
+    checkpoint = torch.load(checkpoint_path)
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
     
-    # Starting prompt
-    prompt = "|gamestart\n|p1|hidden|draw|1"
-    tokens = tokenizer.tokenize(prompt)
-
+    # Get tokens from prompt
+    tokens = tokenizer.tokenize(args.prompt)
 
     with torch.no_grad():
         output_tokens = model.generate(
             tokens,
-            max_new_tokens=30,
-            temperature=1,
+            max_new_tokens=args.max_tokens,
+            temperature=args.temperature,
         )    
     # Convert back to text
     generated_text = tokenizer.detokenize(output_tokens)
@@ -46,4 +40,7 @@ def generate():
     print(generated_text)
 
 if __name__ == '__main__':
-    generate()
+    parser = get_generate_parser()
+    args = parser.parse_args()
+    generate(args)
+

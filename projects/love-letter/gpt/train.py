@@ -6,14 +6,18 @@ from torch.utils.data import DataLoader
 from gpt.models.dataset import LoveLetterDataset
 from gpt.models.gpt_ll import LoveLetterTransformer
 from gpt.models.tokenizer import LoveLetterTokenizer
-import yaml
+from gpt.models.cli import get_training_parser, load_config, update_config_with_args
 from tqdm import tqdm
 
-def train():
-    # Load config
-    config_path = 'gpt/config/model_config.yaml'
-    with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
+def train(args):
+    # Load and update config with CLI arguments
+    config = load_config(args.config)
+    config = update_config_with_args(config, args)
+    
+    model_config = config['model']
+    data_config = config['data']
+    training_config = config['training']
+
     
     # Setup device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -22,42 +26,43 @@ def train():
     tokenizer = LoveLetterTokenizer()
     dataset = LoveLetterDataset(
         tokenizer=tokenizer,
-        config_path='./gpt/config/model_config.yaml'
+        data_config=data_config,
+        model_config=model_config
     )
 
     # Create train/val split
     total_size = len(dataset)
-    train_size = int(total_size * config['data']['train_split'])
+    train_size = int(total_size * data_config['train_split'])
     val_size = total_size - train_size
     train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
 
     # Create train and val dataloaders
     train_dataloader = DataLoader(
         train_dataset,
-        batch_size=config['training']['batch_size'],
+        batch_size=training_config['batch_size'],
         shuffle=True,
-        num_workers=8,
+        num_workers=training_config['num_workers'],
         pin_memory=True,
-        prefetch_factor=2
+        prefetch_factor=training_config['prefetch_factor']
     )
 
     val_dataloader = DataLoader(
         val_dataset,
-        batch_size=config['training']['batch_size'],
+        batch_size=training_config['batch_size'],
         shuffle=False,
-        num_workers=8,
+        num_workers=training_config['num_workers'],
         pin_memory=True,
-        prefetch_factor=2
+        prefetch_factor=training_config['prefetch_factor']
     )
     
     # Initialize model
     model = LoveLetterTransformer(
         vocab_size=tokenizer.vocab_size,
-        config_path=config_path,
+        model_config=model_config,
     ).to(device)
 
     # Load from checkpoint if it exists
-    checkpoint_path = config.get('training', {}).get('checkpoint_path', None)
+    checkpoint_path = training_config.get('checkpoint_path')
     if checkpoint_path and os.path.exists(checkpoint_path):
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint['model_state_dict'])
@@ -66,15 +71,15 @@ def train():
     # Setup optimizer
     optimizer = torch.optim.AdamW(
         model.parameters(),
-        lr=config['training']['learning_rate'],
-        weight_decay=config['training']['weight_decay']
+        lr=training_config['learning_rate'],
+        weight_decay=training_config['weight_decay']
     )
 
     # After creating the optimizer, add the scheduler:
     scheduler = torch.optim.lr_scheduler.OneCycleLR(
         optimizer,
-        max_lr=config['training']['learning_rate'],
-        epochs=config['training']['epochs'],
+        max_lr=training_config['learning_rate'],
+        epochs=training_config['epochs'],
         steps_per_epoch=len(train_dataloader),
         pct_start=0.3,  # Spend 30% of training time in warmup
         div_factor=25,  # Initial lr = max_lr/25
@@ -83,7 +88,7 @@ def train():
 
     
     # Training loop
-    for epoch in range(1, config['training']['epochs'] + 1):
+    for epoch in range(1, training_config['epochs'] + 1):
         model.train()
         total_loss = 0
         pbar = tqdm(enumerate(train_dataloader), total=len(train_dataloader), desc=f'Epoch {epoch}')
@@ -124,7 +129,7 @@ def train():
         })
         
         # Save checkpoint
-        if epoch % config['training']['save_every'] == 0:
+        if epoch % training_config['save_every'] == 0:
             # Add validation loop after training loop and before checkpoint saving
             model.eval()
             val_loss = 0
@@ -159,4 +164,6 @@ def train():
             }, f"gpt/checkpoints/model_epoch_{epoch}.pt")
 
 if __name__ == "__main__":
-    train()
+    parser = get_training_parser()
+    args = parser.parse_args()
+    train(args)

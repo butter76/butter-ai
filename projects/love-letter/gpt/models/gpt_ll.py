@@ -1,26 +1,24 @@
-from typing import cast
+from typing import cast, List
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import yaml
+from .config_types import ModelConfig
 
 class LoveLetterTransformer(nn.Module):
     def __init__(
         self,
-        config_path: str,
+        model_config: ModelConfig,
         vocab_size: int,
     ):
         super().__init__()
-
-        with open(config_path, 'r') as f:
-            config = yaml.safe_load(f)['model']
             
-        self.config = config
-        d_model = config['d_model']
-        nhead = config['nhead']
-        num_layers = config['num_layers']
-        max_seq_len = config['seq_length']
-        dropout = config['dropout']
+        self.config = model_config
+        d_model = model_config['d_model']
+        nhead = model_config['nhead']
+        num_layers = model_config['num_layers']
+        max_seq_len = model_config['seq_length']
+        dropout = model_config['dropout']
+
         
         self.embedding = nn.Embedding(vocab_size, d_model)
         self.pos_encoding = nn.Parameter(torch.zeros(max_seq_len, d_model))
