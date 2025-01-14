@@ -4,11 +4,11 @@ import * as path from "path";
 const bots = [
     {
         name: "RandomBot1",
-        command: "python3.10 -m bots.random_bot"
+        command: "python3.11 -m bots.random_bot"
     },
     {
         name: "RandomBot2",
-        command: "python3.10 -m bots.random_bot"
+        command: "python3.11 -m bots.random_bot"
     },
 ];
 

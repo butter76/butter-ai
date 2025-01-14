@@ -12,7 +12,7 @@ The repo includes VSCode settings that will help you get started with Pylance an
 
 ### Installing Python
 
-It is a requirement to use Python 3.10 aliased to `python3.10`. Be sure that `pip` is also installed (code will use `python3.10 -m pip`).
+It is a requirement to use Python 3.11 aliased to `python3.11`. Be sure that `pip` is also installed (code will use `python3.11 -m pip`).
 
 ### Installing Yarn
 

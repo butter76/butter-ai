@@ -16,10 +16,10 @@ Each project is an AI project that researches a particular 2-player game to deve
 
 It is a requirement to use exactly these versions of the following tools:
 
-- Python 3.10
+- Python 3.11
 - Yarn 1.22
 
-Python is aliased to `python3.10`. Be sure that `pip` is also installed (code will use `python3.10 -m pip`).
+Python is aliased to `python3.11`. Be sure that `pip` is also installed (code will use `python3.11 -m pip`).
 
 ## Project Structure
 
@@ -54,7 +54,7 @@ Assume all python code is running from `projects/<project-name>`.
 
 ### Python Rules
 
-When working with python code, follow these rules. Always use `python3.10` to run python code. In particular, typing works differently in 3.10 than in previous versions of python, for example X | Y for types.
+When working with python code, follow these rules. Always use `python3.11` to run python code. In particular, typing works differently in 3.11 than in previous versions of python, for example X | Y for types.
 
 Python code should be reasonably typed. All functions should have type annotations.
 

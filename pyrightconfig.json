@@ -1,6 +1,6 @@
 {
   "extraPaths": ["./"],
-  "pythonVersion": "3.10",
+  "pythonVersion": "3.11",
   "venvPath": ".",
   "typeCheckingMode": "standard",
   "diagnosticMode": "workspace",
@@ -13,7 +13,7 @@
   "executionEnvironments": [
     {
       "root": "./projects",
-      "pythonVersion": "3.10",
+      "pythonVersion": "3.11",
       "extraPaths": [
         "./",
         "./projects/common",
