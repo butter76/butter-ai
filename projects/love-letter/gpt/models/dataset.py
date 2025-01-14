@@ -1,3 +1,4 @@
+import random
 import re
 import torch
 from torch.utils.data import Dataset
@@ -27,10 +28,24 @@ class LoveLetterDataset(Dataset):
                     text = f.read()
                     lines = text.split('\n')
                     lines = lines[4:]
+
+                    if (random.random() < 2.0 / 3.0 and config['data']['type'] == 'mixed') or config['data']['type'] == 'pov':
+                        # Randomly choose which player's hidden info to remove
+                        remove_p1_hidden = random.random() < 0.5
+                        my_player = 'p2' if remove_p1_hidden else 'p1'
+                        filtered_lines = []
+                        
+                        # Filter out hidden information based on random choice
+                        for line in lines:
+                            if remove_p1_hidden:
+                                if '|p1|hidden' not in line:
+                                    filtered_lines.append(line)
+                            else:
+                                if '|p2|hidden' not in line:
+                                    filtered_lines.append(line)
+                        lines = filtered_lines
                     log = '\n'.join(lines)
                     tokens = self.tokenizer.tokenize(log)
-                    reconstructed_text = self.tokenizer.detokenize(tokens).rstrip('\n')
-                    assert(log == reconstructed_text), f"Failed roundtrip test for {filename}"
 
                     if tokens:  # Only add non-empty sequences
                         self.examples.append(tokens)

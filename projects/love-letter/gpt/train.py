@@ -1,3 +1,4 @@
+import os
 import torch
 torch.set_float32_matmul_precision('high')
 torch.set_printoptions(profile="full")
@@ -54,6 +55,13 @@ def train():
         vocab_size=tokenizer.vocab_size,
         config_path=config_path,
     ).to(device)
+
+    # Load from checkpoint if it exists
+    checkpoint_path = config.get('training', {}).get('checkpoint_path', None)
+    if checkpoint_path and os.path.exists(checkpoint_path):
+        checkpoint = torch.load(checkpoint_path)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        print(f"Loaded model from checkpoint: {checkpoint_path}")
     
     # Setup optimizer
     optimizer = torch.optim.AdamW(
@@ -148,7 +156,7 @@ def train():
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': avg_loss,
-            }, f"checkpoints/model_epoch_{epoch}.pt")
+            }, f"gpt/checkpoints/model_epoch_{epoch}.pt")
 
 if __name__ == "__main__":
     train()

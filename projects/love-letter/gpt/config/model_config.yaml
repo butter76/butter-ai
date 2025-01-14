@@ -10,11 +10,12 @@ data:
   data_dir: "../../../love-letter-logs/logs"
   train_split: 0.95
   val_split: 0.05
-  max_logs: 100000
+  type: mixed
 
 training:
-  batch_size: 64
+  batch_size: 128
   epochs: 200
   learning_rate: 0.001
   weight_decay: 0.01
   save_every: 5
+  checkpoint_path: "gpt/checkpoints/full/model_epoch_55.pt"

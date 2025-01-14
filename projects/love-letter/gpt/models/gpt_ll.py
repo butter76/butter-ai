@@ -1,3 +1,4 @@
+from typing import cast
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -80,7 +81,7 @@ class LoveLetterTransformer(nn.Module):
             
             # Sample from the distribution
             probs = F.softmax(logits, dim=-1)  # [1, vocab_size]
-            next_token = torch.multinomial(probs, num_samples=1)[0].item()  # scalar
+            next_token = cast(int, torch.multinomial(probs, num_samples=1)[0].item())  # scalar
             
             # Add new token to sequence
             tokens.append(next_token)
