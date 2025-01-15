@@ -46,6 +46,9 @@ yarn.lock
 __pycache__
 *.egg-info
 
+# Next.js
+.next/
+
 # Project-specific files
 *.reports/
 *.logs/
