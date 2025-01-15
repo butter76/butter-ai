@@ -59,6 +59,7 @@ export default function Home() {
 	const [currentEffect, setCurrentEffect] = useState<string | null>(null);
 	const [gameOver, setGameOver] = useState(false);
 	const [winner, setWinner] = useState<string>('');
+	const [playedCard, setPlayedCard] = useState<{card: number, player: string} | null>(null);
 
 	const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
 		const file = event.target.files?.[0];
@@ -112,7 +113,10 @@ export default function Home() {
 
 		// Handle card effects
 		if (parts[2] === 'play') {
-			const cardNumber = parts[3];
+			const cardNumber = parseInt(parts[3]);
+			const player = parts[1];
+			setPlayedCard({ card: cardNumber, player });
+			
 			const effectMap: Record<string, string> = {
 				'1': 'guard',
 				'2': 'priest',
@@ -124,6 +128,32 @@ export default function Home() {
 				'8': 'princess'
 			};
 			setCurrentEffect(effectMap[cardNumber]);
+
+			// Delay the card removal until after animation
+			setTimeout(() => {
+				if (player === 'p1') {
+					setP1Hand(prev => {
+						const index = prev.indexOf(cardNumber);
+						return index > -1 ? [...prev.slice(0, index), ...prev.slice(index + 1)] : prev;
+					});
+				} else {
+					setP2Hand(prev => {
+						const index = prev.indexOf(cardNumber);
+						return index > -1 ? [...prev.slice(0, index), ...prev.slice(index + 1)] : prev;
+					});
+				}
+				
+				// Add to discard pile
+				setDiscardPile(prev => [...prev, {
+					card: cardNumber,
+					player: player,
+					turn: turnCount
+				}]);
+				
+				setPlayedCard(null);
+			}, 500); // Half the animation duration to ensure smooth transition
+
+			return; // Exit early to prevent immediate card removal
 		}
 
 		// Handle game over conditions
@@ -348,13 +378,21 @@ export default function Home() {
 								<h2 className="text-xl font-semibold mb-4">{gameState.p2Name} (Player 2)</h2>
 								<div className="flex gap-4 flex-wrap justify-center">
 									{p2Hand.map((card, i) => (
-										<Card
+										<div
 											key={i}
-											value={card}
-											name={CARD_NAMES[card as keyof typeof CARD_NAMES]}
-											isProtected={p2Protected}
-											isHighlighted={gameState.currentPlayer === 1}
-										/>
+											className={`transform transition-all duration-1000 ${
+												playedCard?.card === card && playedCard?.player === 'p2'
+													? 'scale-75 opacity-50 translate-y-[100px]'
+													: ''
+											}`}
+										>
+											<Card
+												value={card}
+												name={CARD_NAMES[card as keyof typeof CARD_NAMES]}
+												isProtected={p2Protected}
+												isHighlighted={gameState.currentPlayer === 1}
+											/>
+										</div>
 									))}
 								</div>
 							</div>
@@ -373,13 +411,21 @@ export default function Home() {
 								<h2 className="text-xl font-semibold mb-4">{gameState.p1Name} (Player 1)</h2>
 								<div className="flex gap-4 flex-wrap justify-center">
 									{p1Hand.map((card, i) => (
-										<Card
+										<div
 											key={i}
-											value={card}
-											name={CARD_NAMES[card as keyof typeof CARD_NAMES]}
-											isProtected={p1Protected}
-											isHighlighted={gameState.currentPlayer === 0}
-										/>
+											className={`transform transition-all duration-1000 ${
+												playedCard?.card === card && playedCard?.player === 'p1'
+													? 'scale-75 opacity-50 translate-y-[-100px]'
+													: ''
+											}`}
+										>
+											<Card
+												value={card}
+												name={CARD_NAMES[card as keyof typeof CARD_NAMES]}
+												isProtected={p1Protected}
+												isHighlighted={gameState.currentPlayer === 0}
+											/>
+										</div>
 									))}
 								</div>
 							</div>
