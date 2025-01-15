@@ -132,6 +132,38 @@ export default function Home() {
 			setWinner(parts[2]);
 		}
 
+		// Handle King's swap action
+		if (parts[1] === 'swap') {
+			const p1Card = parseInt(parts[4]);
+			const p2Card = parseInt(parts[5]);
+			setP1Hand([p2Card]);
+			setP2Hand([p1Card]);
+		}
+	
+		// Handle Prince's discard action
+		if (parts[2] === 'discard') {
+			const player = parts[1];
+			const discardedCard = parseInt(parts[3]);
+			
+			if (player === 'p1') {
+				setP1Hand(prev => {
+					const index = prev.indexOf(discardedCard);
+					return index > -1 ? [...prev.slice(0, index), ...prev.slice(index + 1)] : prev;
+				});
+			} else {
+				setP2Hand(prev => {
+					const index = prev.indexOf(discardedCard);
+					return index > -1 ? [...prev.slice(0, index), ...prev.slice(index + 1)] : prev;
+				});
+			}			
+			// Add to discard pile
+			setDiscardPile(prev => [...prev, {
+				card: discardedCard,
+				player: player,
+				turn: turnCount
+			}]);
+		}
+
 		// Track discards
 		if ((parts[1] === 'p1' || parts[1] === 'p2') && parts[2] === 'play') {
 			setDiscardPile(prev => [...prev, {
@@ -187,17 +219,24 @@ export default function Home() {
 		setP2Hand([]);
 		setP1Protected(false);
 		setP2Protected(false);
+		setDiscardPile([]); // Reset discard pile
+		setTurnCount(0); // Reset turn counter
+		setCurrentEffect(null); // Reset current effect
+		setGameOver(false); // Reset game over state
+		setWinner(''); // Reset winner
 		setGameState(prev => ({
 			...prev,
 			currentStep: 0,
-			deckCount: 15
+			deckCount: 15,
+			currentPlayer: 0 // Reset current player
 		}));
 		setIsPlaying(false);
 	};
 
 	useEffect(() => {
-		let interval: NodeJS.Timeout;
-		if (isPlaying) {
+		let interval: NodeJS.Timeout | null = null;
+		
+		if (isPlaying && gameState.currentStep < gameState.log.length - 1) {
 			interval = setInterval(() => {
 				if (gameState.currentStep < gameState.log.length - 1) {
 					nextStep();
@@ -206,8 +245,13 @@ export default function Home() {
 				}
 			}, playbackSpeed);
 		}
-		return () => clearInterval(interval);
-	}, [isPlaying, gameState.currentStep, gameState.log.length]);
+
+		return () => {
+			if (interval) {
+				clearInterval(interval);
+			}
+		};
+	}, [isPlaying, gameState.currentStep, gameState.log.length, playbackSpeed]);
 
 	const nextStep = () => {
 		if (gameState.currentStep < gameState.log.length - 1) {
@@ -221,16 +265,28 @@ export default function Home() {
 
 	const prevStep = () => {
 		if (gameState.currentStep > 0) {
-			// Reset state and replay from beginning
+			// Reset all state variables
 			setP1Hand([]);
 			setP2Hand([]);
 			setP1Protected(false);
 			setP2Protected(false);
+			setDiscardPile([]); // Reset discard pile
+			setTurnCount(0); // Reset turn counter
+			setCurrentEffect(null); // Reset current effect
+			setGameOver(false); // Reset game over state
+			setWinner(''); // Reset winner
+			setGameState(prev => ({
+				...prev,
+				deckCount: 15, // Reset deck count
+				currentPlayer: 0 // Reset current player
+			}));
 			
+			// Replay all steps up to the target step
 			for (let i = 0; i <= gameState.currentStep - 1; i++) {
 				processGameStep(i);
 			}
 			
+			// Update the current step
 			setGameState(prev => ({
 				...prev,
 				currentStep: prev.currentStep - 1
@@ -351,10 +407,12 @@ export default function Home() {
 				</div>
 			</div>
 			{currentEffect && (
-				<CardEffect
-					effect={currentEffect}
-					onComplete={handleEffectComplete}
-				/>
+				<div className="pointer-events-none fixed inset-0 flex items-center justify-center z-10">
+					<CardEffect
+						effect={currentEffect}
+						onComplete={handleEffectComplete}
+					/>
+				</div>
 			)}
 		</div>
 	);
