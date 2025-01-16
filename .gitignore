@@ -45,6 +45,7 @@ yarn.lock
 # Python cache
 __pycache__
 *.egg-info
+.pytest_cache/
 
 # Next.js
 .next/
