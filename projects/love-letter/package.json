@@ -2,7 +2,7 @@
     "name": "@butter-ai/love-letter",
     "version": "1.0.0",
     "scripts": {
-        "start:tourney": "ts-node ts/run-tourney.ts",
+        "start:tourney": "ts-node src/run-tourney.ts",
         "test": "PYTHONPATH=$PYTHONPATH:. pytest",
         "gpt:train": "python3.11 -m gpt.train",
         "gpt:generate": "python3.11 -m gpt.generate",

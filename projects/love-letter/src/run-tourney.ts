@@ -44,7 +44,7 @@ const argv = yargs(hideBin(process.argv))
     .options({
         'config': {
             type: 'string',
-            default: '../config/tourney.yaml',
+            default: './config/tourney.yaml',
             describe: 'Path to config file'
         },
         'gamesPerMatch': { type: 'number', describe: 'Number of games per match' },
@@ -65,7 +65,7 @@ const argv = yargs(hideBin(process.argv))
     .parseSync() as CommandLineArgs;
 
 // Load config file
-const configPath = path.resolve(__dirname, argv.config);
+const configPath = argv.config;
 const configFile = fs.readFileSync(configPath, 'utf8');
 const config = yaml.load(configFile) as TourneyConfig;
 

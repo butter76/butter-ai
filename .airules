@@ -31,11 +31,13 @@ Python is aliased to `python3.11`. When using `pip`, use the syntax of `python3.
     - `config` - Contains .yaml files for the project
     - `gpt` - A GPT-based approach to playing the game
       - `checkpoints` - Checkpoints for the GPT model
+      - `config` - GPT-specific config
       - `models` - GPT model for the project
       - `tests` - Tests for the GPT model
-    - `ts` - Typescript code for the project
+    - `src` - Typescript code for the project, including a UI & Engine
       - `engine` - Engine for the Love Letter game
       - `tourney` - Tourney code for Love Letter
+      - `pages` - Next.js pages for the project
     - `utils` - Utils for the project
     - `.rules` - Game rules for love letter
     - `package.json` - Yarn package.json for the project, also includes scripts for the project
@@ -57,7 +59,6 @@ Assume all python code is running from `projects/<project-name>`.
 When working with python code, follow these rules. Always use `python3.11` to run python code. In particular, typing works differently in 3.11 than in previous versions of python, for example X | Y for types.
 
 Python code should be reasonably typed. All functions should have type annotations.
-
 
 ### Pytorch Rules
 
