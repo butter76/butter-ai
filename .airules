@@ -10,7 +10,7 @@ Your goal is to completely finish whatever I ask for.
 
 This is python + Yarn monorepo that combines both Typed Python & Typescript. There are multiple projects in this repo located in its own folder in `projects/`, which may use code from `projects/common`. The `projects/common` folder is a library of code that can be used by any project.
 
-Each project is an AI project that researches a particular 2-player game to develop superhuman AI. Each project may have multiple orthogonal Machine Learning techniques to play the game. Each project also has an engine and tourney code, as well as a series of bots that use different techniques to play the game.
+Each project is an AI project that researches a particular 2-player game to develop superhuman AI. Each project may have multiple orthogonal Machine Learning techniques to play the game. Each project also has an engine, tourney, and/or UI code, as well as a series of bots that use different techniques to play the game.
 
 ## Tech Stack
 
@@ -19,7 +19,7 @@ It is a requirement to use exactly these versions of the following tools:
 - Python 3.11
 - Yarn 1.22
 
-Python is aliased to `python3.11`. Be sure that `pip` is also installed (code will use `python3.11 -m pip`).
+Python is aliased to `python3.11`. When using `pip`, use the syntax of `python3.11 -m pip`.
 
 ## Project Structure
 
@@ -70,6 +70,70 @@ padding_mask = padding_mask.unsqueeze(-1)   # [batch_size, seq_len, 1]
 
 In general, you should expect to have all models to use a modestly sized batch_size when possible.
 
+All checkpoints should be saved with at least the following keys:
+
+- `model_state_dict` - the model state dict
+- `optimizer_state_dict` - the optimizer state dict
+- `epoch` - the epoch number
+- `model_config` - the model config
+
+When loading a checkpoint, it is essential to load the model config from the checkpoint to initialize the model. This is because the model config may have changed since the checkpoint was saved and the number of layers or other important parameters may have changed.
+
+```python
+# Load checkpoint
+checkpoint = torch.load(generation_config['checkpoint_path'])
+
+# Initialize model
+model = LoveLetterTransformer(
+  vocab_size=tokenizer.vocab_size,
+  model_config=checkpoint['model_config'],
+).to(device)
+model.load_state_dict(checkpoint['model_state_dict'])
+print(f"Loaded model from checkpoint: {generation_config['checkpoint_path']}")
+```
+
 ### Config Rules
 
 Generally speaking all classes or functions with configuration should be split up into 1) defaults, 2) .yaml files, 3) command lines arguments. Command line arguments should have highest priority, followed by .yaml files, followed by defaults.
+
+In Python, fully specify the type of the configuration object. An example is:
+
+```python
+class ModelConfig(TypedDict):
+	d_model: int
+	nhead: int
+	num_layers: int
+	seq_length: int
+	dropout: float
+	device: str
+
+class DataConfig(TypedDict):
+	data_dir: str
+	train_split: float
+	val_split: float
+	type: Literal['mixed', 'pov', 'full']
+	max_logs: int | None
+
+class Config(TypedDict):
+	model: ModelConfig
+	data: DataConfig
+```
+
+with a corresponding .yaml file that might look like:
+
+```yaml
+model:
+  d_model: 128
+  nhead: 16
+  num_layers: 4
+  seq_length: 256
+  dropout: 0.1
+  device: cuda
+
+data:
+  data_dir: "./logs"
+  train_split: 0.95
+  val_split: 0.05
+  type: mixed
+```
+

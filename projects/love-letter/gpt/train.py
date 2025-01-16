@@ -54,19 +54,26 @@ def train(config: Config):
         pin_memory=True,
         prefetch_factor=training_config['prefetch_factor']
     )
-    
-    # Initialize model
-    model = LoveLetterTransformer(
-        vocab_size=tokenizer.vocab_size,
-        model_config=model_config,
-    ).to(device)
 
     # Load from checkpoint if it exists
     checkpoint_path = training_config.get('checkpoint_path')
     if checkpoint_path and os.path.exists(checkpoint_path):
         checkpoint = torch.load(checkpoint_path)
+
+        # Create model that matches the checkpoint
+        model = LoveLetterTransformer(
+            vocab_size=tokenizer.vocab_size,
+            model_config=checkpoint['model_config'],
+        ).to(device)
+
         model.load_state_dict(checkpoint['model_state_dict'])
         print(f"Loaded model from checkpoint: {checkpoint_path}")
+    else:
+        # Initialize model
+        model = LoveLetterTransformer(
+            vocab_size=tokenizer.vocab_size,
+            model_config=model_config,
+        ).to(device)
     
     # Setup optimizer
     optimizer = torch.optim.AdamW(
@@ -97,7 +104,7 @@ def train(config: Config):
             x, y = x.to(device), y.to(device)
             
             # Forward pass
-            logits = model(x)
+            logits = model.get_policy(x)
             
             # Compute loss
             loss = torch.nn.functional.cross_entropy(
@@ -143,13 +150,13 @@ def train(config: Config):
             val_loss = 0
             val_tokens = 0
             
-            with torch.no_grad():
+            with torch.inference_mode():
                 val_pbar = tqdm(enumerate(val_dataloader), total=len(val_dataloader), desc=f'Validation Epoch {epoch}')
                 for batch_idx, (x, y) in val_pbar:
                     x, y = x.to(device), y.to(device)
                     
                     # Forward pass
-                    logits = model(x)
+                    logits = model.get_policy(x)
                     
                     # Compute loss
                     loss = torch.nn.functional.cross_entropy(
@@ -185,6 +192,7 @@ def train(config: Config):
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': avg_loss,
+                'model_config': model.config,
             }, f"gpt/checkpoints/model_epoch_{epoch}.pt")
 
 if __name__ == "__main__":

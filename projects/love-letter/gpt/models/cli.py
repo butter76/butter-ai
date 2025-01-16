@@ -165,7 +165,6 @@ def get_validate_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         '--checkpoint',
         type=str,
-        required=True,
         help='Path to model checkpoint to evaluate'
     )
     parser.add_argument(

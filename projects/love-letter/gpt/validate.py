@@ -36,15 +36,15 @@ def validate(config: Config):
 		pin_memory=True,
 		prefetch_factor=training_config['prefetch_factor']
 	)
-	
-	# Initialize model
-	model = LoveLetterTransformer(
-		vocab_size=tokenizer.vocab_size,
-		model_config=model_config,
-	).to(device)
 
 	# Load checkpoint
 	checkpoint = torch.load(generation_config['checkpoint_path'])
+
+	# Initialize model
+	model = LoveLetterTransformer(
+		vocab_size=tokenizer.vocab_size,
+		model_config=checkpoint['model_config'],
+	).to(device)
 	model.load_state_dict(checkpoint['model_state_dict'])
 	print(f"Loaded model from checkpoint: {generation_config['checkpoint_path']}")
 	
@@ -53,13 +53,13 @@ def validate(config: Config):
 	total_loss = 0
 	total_tokens = 0
 	
-	with torch.no_grad():
+	with torch.inference_mode():
 		pbar = tqdm(enumerate(dataloader), total=len(dataloader), desc='Validating')
 		for batch_idx, (x, y) in pbar:
 			x, y = x.to(device), y.to(device)
 			
 			# Forward pass
-			logits = model(x)
+			logits = model.get_policy(x)
 			
 			# Compute loss
 			loss = torch.nn.functional.cross_entropy(

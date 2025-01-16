@@ -59,6 +59,12 @@ class LoveLetterTransformer(nn.Module):
         
         return policy_logits
     
+    def get_policy(self, x: torch.Tensor) -> torch.Tensor:
+        return self(x)
+    
+    def get_value(self, x: torch.Tensor) -> torch.Tensor:
+        ...
+    
     def generate(self, tokens: list[int], max_new_tokens: int, temperature=1.0) -> list[int]:
         device = next(self.parameters()).device
         
@@ -74,7 +80,7 @@ class LoveLetterTransformer(nn.Module):
             x = torch.tensor([padded_tokens], dtype=torch.long).to(device)  # [1, seq_length]
             
             # Get predictions
-            logits = self(x)  # [1, seq_length, vocab_size]
+            logits = self.get_policy(x)  # [1, seq_length, vocab_size]
             logits = logits[:, len(tokens) - 1, :] / temperature  # [1, vocab_size]
             
             # Sample from the distribution
