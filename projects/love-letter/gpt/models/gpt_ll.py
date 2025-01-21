@@ -2,7 +2,53 @@ from typing import cast, List
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from flash_attn import flash_attn_func
+from flash_attn.modules.mha import FlashSelfAttention
 from .config_types import ModelConfig
+
+class FlashAttentionLayer(nn.Module):
+    def __init__(self, d_model, nhead, dropout=0.1):
+        super().__init__()
+        # Pass causal=True directly in the constructor
+        self.flash_attention = FlashSelfAttention(causal=True, attention_dropout=dropout)
+        self.nhead = nhead
+        self.head_dim = d_model // nhead
+        self.scaling = self.head_dim ** -0.5
+        
+        self.q_proj = nn.Linear(d_model, d_model)
+        self.k_proj = nn.Linear(d_model, d_model)
+        self.v_proj = nn.Linear(d_model, d_model)
+        self.out_proj = nn.Linear(d_model, d_model)
+
+    def forward(self, x, causal=True):
+        batch_size, seq_len, d_model = x.shape
+        
+        # Fuse QKV projections into one operation
+        qkv = torch.cat([self.q_proj(x), self.k_proj(x), self.v_proj(x)], dim=-1)
+        qkv = qkv.reshape(batch_size, seq_len, 3, self.nhead, self.head_dim)
+        q, k, v = qkv.unbind(dim=2)
+        
+        # Use flash_attn_func directly instead of FlashSelfAttention module
+        output = flash_attn_func(q, k, v, causal=causal, dropout_p=0.1)
+        
+        output = output.contiguous().view(batch_size, seq_len, d_model)
+        return self.out_proj(output)
+
+class FlashTransformerEncoderLayer(nn.Module):
+    def __init__(self, d_model, nhead, dim_feedforward, dropout):
+        super().__init__()
+        self.flash_attention = FlashAttentionLayer(d_model, nhead, dropout)
+        self.linear1 = nn.Linear(d_model, dim_feedforward)
+        self.linear2 = nn.Linear(dim_feedforward, d_model)
+        self.norm1 = nn.LayerNorm(d_model)
+        self.norm2 = nn.LayerNorm(d_model)
+        self.dropout = nn.Dropout(dropout)
+        self.activation = F.gelu
+
+    def forward(self, x):
+        x = x + self.flash_attention(self.norm1(x))
+        x = x + self.dropout(self.linear2(self.activation(self.linear1(self.norm2(x)))))
+        return x
 
 class LoveLetterTransformer(nn.Module):
     def __init__(
@@ -23,14 +69,15 @@ class LoveLetterTransformer(nn.Module):
         self.embedding = nn.Embedding(vocab_size, d_model)
         self.pos_encoding = nn.Parameter(torch.zeros(max_seq_len, d_model))
         
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=d_model,
-            nhead=nhead,
-            dim_feedforward=d_model * 4,
-            dropout=dropout,
-            batch_first=True
-        )
-        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers)
+        # Replace standard transformer layers with Flash Attention layers
+        self.transformer = nn.ModuleList([
+            FlashTransformerEncoderLayer(
+                d_model=d_model,
+                nhead=nhead,
+                dim_feedforward=d_model * 4,
+                dropout=dropout
+            ) for _ in range(num_layers)
+        ])
         
         # Policy head (original output layer)
         self.policy_head = nn.Linear(d_model, vocab_size)
@@ -42,21 +89,19 @@ class LoveLetterTransformer(nn.Module):
         #     nn.Linear(d_model // 2, 1),
         #     nn.Tanh()  # Output between -1 and 1 for win probability
         # )
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         seq_len = x.size(1)
-        pad_token_id = 0
-
-        # Create causal mask
-        causal_mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=1).bool()
-        causal_mask = causal_mask.to(x.device)
         
         x_embedded = self.embedding(x)  # [batch_size, seq_len, d_model]
         x_embedded = x_embedded + self.pos_encoding[:seq_len, :]  # [batch_size, seq_len, d_model]
         
-        features = self.transformer(x_embedded, mask=causal_mask)  # [batch_size, seq_len, d_model]
+        # Pass through transformer layers
+        features = x_embedded  # [batch_size, seq_len, d_model]
+        for layer in self.transformer:
+            features = layer(features)  # [batch_size, seq_len, d_model]
         
         policy_logits = self.policy_head(features)  # [batch_size, seq_len, vocab_size]
-        
         return policy_logits
     
     def get_policy(self, x: torch.Tensor) -> torch.Tensor:

@@ -64,7 +64,7 @@ class LoveLetterDataset(Dataset):
         
         # x: everything except the last token
         x = torch.tensor(padded_tokens[:-1], dtype=torch.long)  # [seq_length]
-        # y: everything except the first token
+        # y: everything except the first token 
         y = torch.tensor(padded_tokens[1:], dtype=torch.long)   # [seq_length]
         
         

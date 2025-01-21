@@ -1,7 +1,7 @@
 import torch
 
 from gpt.models.config_types import Config
-torch.set_float32_matmul_precision('high')
+torch.set_default_dtype(torch.bfloat16)
 torch.set_printoptions(profile="full")
 from torch.utils.data import DataLoader
 from gpt.models.dataset import LoveLetterDataset
