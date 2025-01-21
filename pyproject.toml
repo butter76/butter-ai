@@ -14,7 +14,8 @@ dependencies = [
     "pytest>=7.4.0",
     "packaging>=24.2",
     "ninja>=1.11.1.3",
-    "flash-attn>=2.7.3"
+    "flash-attn>=2.7.3",
+    "nvidia-tensorrt>=99.0.0"
 ]
 
 [project.optional-dependencies]
