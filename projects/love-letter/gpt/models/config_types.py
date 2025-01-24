@@ -6,6 +6,7 @@ class ModelConfig(TypedDict):
 	num_layers: int
 	seq_length: int
 	dropout: float
+	ffn_mul: float
 	device: str
 
 class DataConfig(TypedDict):

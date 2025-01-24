@@ -4,6 +4,7 @@ model:
   num_layers: 4
   seq_length: 256
   dropout: 0.1
+  ffn_mul: 2
   device: cuda
 
 data:
@@ -24,5 +25,5 @@ training:
 generation:
   temperature: 1.0
   max_tokens: 30
-  checkpoint_path: "gpt/checkpoints/model_epoch_5.pt"
+  checkpoint_path: "gpt/checkpoints/model_epoch_80.pt"
   prompt: "|gamestart\n|p1|hidden|draw|1"

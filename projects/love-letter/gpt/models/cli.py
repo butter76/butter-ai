@@ -46,6 +46,11 @@ def get_base_parser() -> argparse.ArgumentParser:
 		help='Dropout rate'
 	)
 	parser.add_argument(
+		'--ffn-mul',
+		type=float,
+		help='Feedforward network multiplier (of d_model)'
+	)
+	parser.add_argument(
 		'--device',
 		type=str,
 		choices=['cuda', 'cpu'],
@@ -216,6 +221,8 @@ def update_config_with_args(config: Config, args: argparse.Namespace) -> Config:
 		updated_config['model']['seq_length'] = args.seq_length
 	if hasattr(args, 'dropout') and args.dropout is not None:
 		updated_config['model']['dropout'] = args.dropout
+	if hasattr(args, 'ffn_mul') and args.ffn_mul is not None:
+		updated_config['model']['ffn_mul'] = args.ffn_mul
 	if hasattr(args, 'device') and args.device is not None:
 		updated_config['model']['device'] = args.device
 	

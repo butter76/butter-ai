@@ -1,4 +1,4 @@
-from typing import cast, List
+from typing import Any, cast, List
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -14,6 +14,7 @@ class FlashAttentionLayer(nn.Module):
         self.nhead = nhead
         self.head_dim = d_model // nhead
         self.scaling = self.head_dim ** -0.5
+        self.dropout = dropout
         
         self.q_proj = nn.Linear(d_model, d_model)
         self.k_proj = nn.Linear(d_model, d_model)
@@ -29,7 +30,7 @@ class FlashAttentionLayer(nn.Module):
         q, k, v = qkv.unbind(dim=2)
         
         # Use flash_attn_func directly instead of FlashSelfAttention module
-        output = flash_attn_func(q, k, v, causal=causal, dropout_p=0.1)
+        output = cast(Any, flash_attn_func(q, k, v, causal=causal, dropout_p=self.dropout))
         
         output = output.contiguous().view(batch_size, seq_len, d_model)
         return self.out_proj(output)
@@ -64,6 +65,7 @@ class LoveLetterTransformer(nn.Module):
         num_layers = model_config['num_layers']
         max_seq_len = model_config['seq_length']
         dropout = model_config['dropout']
+        ffn_mul = model_config['ffn_mul']
 
         
         self.embedding = nn.Embedding(vocab_size, d_model)
@@ -74,7 +76,7 @@ class LoveLetterTransformer(nn.Module):
             FlashTransformerEncoderLayer(
                 d_model=d_model,
                 nhead=nhead,
-                dim_feedforward=d_model * 4,
+                dim_feedforward=d_model * ffn_mul,
                 dropout=dropout
             ) for _ in range(num_layers)
         ])
