@@ -1,5 +1,7 @@
 import sys
 
+import torch
+
 
 class LoveLetterTokenizer:
     def __init__(self, debug=False):
@@ -58,6 +60,13 @@ class LoveLetterTokenizer:
             print(f"[Tokenizer Debug] {s}", file=sys.stderr, flush=True)
 
     
+    def pad_tokens(self, tokens, max_length=256):
+        pad_length = max_length - len(tokens)
+        return tokens[:max_length] + [self.special_tokens['PAD']] * pad_length
+    def pad_and_tensor(self, tokens, max_length=256, device='cuda'):
+        tokens = self.pad_tokens(tokens, max_length)
+        return torch.tensor([tokens], dtype=torch.long).to(device)
+
     def tokenize(self, text: str) -> list[int]:
         self.p(f"Tokenizing text:\n{text}\n-------------------")
         text = text.rstrip('\n')

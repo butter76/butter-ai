@@ -84,15 +84,15 @@ class LoveLetterTransformer(nn.Module):
         # Policy head (original output layer)
         self.policy_head = nn.Linear(d_model, vocab_size)
         
-        # # Value head
-        # self.value_head = nn.Sequential(
-        #     nn.Linear(d_model, d_model // 2),
-        #     nn.ReLU(),
-        #     nn.Linear(d_model // 2, 1),
-        #     nn.Tanh()  # Output between -1 and 1 for win probability
-        # )
+        # Value head
+        self.value_head = nn.Sequential(
+            nn.Linear(d_model, d_model // 2),
+            nn.ReLU(),
+            nn.Linear(d_model // 2, 1),
+            nn.Tanh()  # Output between -1 and 1 for win probability
+        )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         seq_len = x.size(1)
         
         x_embedded = self.embedding(x)  # [batch_size, seq_len, d_model]
@@ -104,13 +104,16 @@ class LoveLetterTransformer(nn.Module):
             features = layer(features)  # [batch_size, seq_len, d_model]
         
         policy_logits = self.policy_head(features)  # [batch_size, seq_len, vocab_size]
-        return policy_logits
+        value = self.value_head(features) # [batch_size, seq_len, 1]
+        return policy_logits, value
     
     def get_policy(self, x: torch.Tensor) -> torch.Tensor:
-        return self(x)
+        policy_logits, _ = self(x)
+        return policy_logits
     
     def get_value(self, x: torch.Tensor) -> torch.Tensor:
-        ...
+        _, value = self(x)
+        return value
     
     def generate(self, tokens: list[int], max_new_tokens: int, temperature=1.0) -> list[int]:
         device = next(self.parameters()).device
@@ -136,5 +139,9 @@ class LoveLetterTransformer(nn.Module):
             
             # Add new token to sequence
             tokens.append(next_token)
+
+            if next_token == 27 or next_token == 28:
+                break
         
         return tokens
+    

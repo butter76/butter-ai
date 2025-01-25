@@ -1,0 +1,18 @@
+# Tournament Configuration
+bots:
+  - name: "RandomBot1"
+    command: "python3.11 -m bots.random_bot"
+  - name: "GPTBot"
+    command: "python3.11 -m bots.gpt_bot"
+
+options:
+  gamesPerMatch: 10
+  logDirectory: "./.logs/gpt_testing"
+  reportDirectory: "./.reports"
+  timeLimitSeconds: 120
+  chunkSize: 1
+  firstTo: 3
+  tourneyName: "LoveLetterTourney"
+  debug:
+    tourney: false  # Debug output for tournament operations
+    engine: false   # Debug output for game engine

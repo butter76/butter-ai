@@ -1,7 +1,7 @@
 model:
-  d_model: 512
-  nhead: 32
-  num_layers: 15
+  d_model: 128
+  nhead: 8
+  num_layers: 4
   seq_length: 256
   dropout: 0.1
   ffn_mul: 2
@@ -12,7 +12,6 @@ data:
   train_split: 0.95
   val_split: 0.05
   type: pov
-  max_logs: 165000
 
 training:
   batch_size: 128

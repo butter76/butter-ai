@@ -17,13 +17,15 @@ class LoveLetterDataset(Dataset):
         count = 0
 
         
-        self.examples: List[List[int]] = []
+        self.examples: List[tuple[List[int], bool]] = []
         for filename in os.listdir(data_dir):
             if filename.endswith('.log'):
                 with open(os.path.join(data_dir, filename), 'r') as f:
                     text = f.read()
                     lines = text.split('\n')
                     lines = lines[4:]
+
+                    victory = False
 
                     if (random.random() < 2.0 / 3.0 and data_config['type'] == 'mixed') or data_config['type'] == 'pov':
                         # Randomly choose which player's hidden info to remove
@@ -39,12 +41,17 @@ class LoveLetterDataset(Dataset):
                             else:
                                 if '|p2|hidden' not in line:
                                     filtered_lines.append(line)
+                            if '|end|p1|win' in line:
+                                victory = (my_player == 'p1')
+                            if '|end|p2|win' in line:
+                                victory = (my_player == 'p2')
+
                         lines = filtered_lines
                     log = '\n'.join(lines)
                     tokens = self.tokenizer.tokenize(log)
 
                     if tokens:  # Only add non-empty sequences
-                        self.examples.append(tokens)
+                        self.examples.append((tokens, victory))
                     count += 1
             if (max_logs is not None) and (count >= max_logs):
                 break
@@ -52,8 +59,8 @@ class LoveLetterDataset(Dataset):
     def __len__(self) -> int:
         return len(self.examples)
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        tokens = self.examples[idx]
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        tokens, victory = self.examples[idx]
         
         # Create input and target sequences
         if len(tokens) > self.seq_length + 1:
@@ -66,9 +73,11 @@ class LoveLetterDataset(Dataset):
         x = torch.tensor(padded_tokens[:-1], dtype=torch.long)  # [seq_length]
         # y: everything except the first token 
         y = torch.tensor(padded_tokens[1:], dtype=torch.long)   # [seq_length]
+        # y' for the value head
+        y_value = torch.tensor([1 if victory else -1] * self.seq_length, dtype=torch.bfloat16)  # [1]
         
         
-        return x, y
+        return x, y, y_value
     
     def get_padding_mask(self, tokens: torch.Tensor) -> torch.Tensor:
         """Create padding mask where 1 indicates non-pad tokens."""

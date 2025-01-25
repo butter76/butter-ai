@@ -100,23 +100,33 @@ def train(config: Config):
         total_loss = 0
         total_tokens = 0
         pbar = tqdm(enumerate(train_dataloader), total=len(train_dataloader), desc=f'Epoch {epoch}')
-        for batch_idx, (x, y) in pbar:
-            x, y = x.to(device), y.to(device)
+        for batch_idx, (x, y, y_value) in pbar:
+            x, y, y_value = x.to(device), y.to(device), y_value.to(device)
             
+            # Count non-padding tokens
+            non_pad_mask = (y != tokenizer.special_tokens['PAD'])
+            num_tokens = non_pad_mask.sum().item()
+
             # Forward pass
-            logits = model.get_policy(x)
+            logits, value = model(x)
             
-            # Compute loss
-            loss = torch.nn.functional.cross_entropy(
+            # Compute policy loss
+            policy_loss = torch.nn.functional.cross_entropy(
                 logits.view(-1, logits.size(-1)),
                 y.view(-1),
                 ignore_index=tokenizer.special_tokens['PAD'],
                 reduction='sum'
             )
             
-            # Count non-padding tokens
-            non_pad_mask = (y != tokenizer.special_tokens['PAD'])
-            num_tokens = non_pad_mask.sum().item()
+            # Compute value loss - broadcast y_value to match sequence length
+            value_loss = torch.nn.functional.mse_loss(
+                value.view(-1)[:num_tokens], # [batch, seq_len]
+                y_value.view(-1)[:num_tokens],
+                reduction='sum'
+            )
+            
+            # Combined loss
+            loss = policy_loss + value_loss            
             
             # Backward pass
             optimizer.zero_grad()
@@ -152,23 +162,33 @@ def train(config: Config):
             
             with torch.inference_mode():
                 val_pbar = tqdm(enumerate(val_dataloader), total=len(val_dataloader), desc=f'Validation Epoch {epoch}')
-                for batch_idx, (x, y) in val_pbar:
-                    x, y = x.to(device), y.to(device)
+                for batch_idx, (x, y, y_value) in val_pbar:
+                    x, y, y_value = x.to(device), y.to(device), y_value.to(device)
                     
                     # Forward pass
-                    logits = model.get_policy(x)
+                    logits, value = model(x)
+
+                    # Count non-padding tokens
+                    non_pad_mask = (y != tokenizer.special_tokens['PAD'])
+                    num_tokens = non_pad_mask.sum().item()
                     
-                    # Compute loss
-                    loss = torch.nn.functional.cross_entropy(
+                    # Compute policy loss
+                    policy_loss = torch.nn.functional.cross_entropy(
                         logits.view(-1, logits.size(-1)),
                         y.view(-1),
                         ignore_index=tokenizer.special_tokens['PAD'],
                         reduction='sum'
                     )
                     
-                    # Count non-padding tokens
-                    non_pad_mask = (y != tokenizer.special_tokens['PAD'])
-                    num_tokens = non_pad_mask.sum().item()
+                    # Compute value loss - broadcast y_value to match sequence length
+                    value_loss = torch.nn.functional.mse_loss(
+                        value.view(-1)[:num_tokens], # [batch, seq_len]
+                        y_value.view(-1)[:num_tokens],
+                        reduction='sum'
+                    )
+                    
+                    # Combined loss
+                    loss = policy_loss + value_loss 
                     
                     val_loss += loss.item()
                     val_tokens += num_tokens

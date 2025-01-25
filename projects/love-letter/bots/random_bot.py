@@ -37,7 +37,7 @@ class RandomBot(LoveLetterBot):
         if self.config.debug:
             print(f"[RandomBot Debug] {s}", file=sys.stderr, flush=True)
 
-    def choose_move(self, hand: Hand, state: GameState, time_limit: int | None) -> Move:
+    def choose_move(self, lines: list[str], hand: Hand, state: GameState, time_limit: int | None) -> Move:
         """Choose which card to play and optional target.
         
         Args:

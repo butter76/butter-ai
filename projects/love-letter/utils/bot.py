@@ -115,7 +115,7 @@ def parse_game_state(lines: list[str]) -> tuple[Hand, GameState]:
 
 
 class LoveLetterBot(Protocol):
-    def choose_move(self, hand: list[int], state: GameState, time_limit: int | None) -> Move:
+    def choose_move(self, lines: list[str], hand: list[int], state: GameState, time_limit: int | None) -> Move:
         ...
 
     def main(self):
@@ -136,7 +136,7 @@ class LoveLetterBot(Protocol):
                 hand, game_state = parse_game_state(logs)
             
                 # Choose move
-                card_to_play, target = self.choose_move(hand, game_state, time_limit)
+                card_to_play, target = self.choose_move(logs[4:], hand, game_state, time_limit)
             
                 # Output move and flush stdout
                 if target is not None:
