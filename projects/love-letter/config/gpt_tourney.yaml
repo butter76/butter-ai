@@ -6,13 +6,13 @@ bots:
     command: "python3.11 -m bots.gpt_bot"
 
 options:
-  gamesPerMatch: 10
+  gamesPerMatch: 200
   logDirectory: "./.logs/gpt_testing"
   reportDirectory: "./.reports"
   timeLimitSeconds: 120
-  chunkSize: 1
-  firstTo: 3
-  tourneyName: "LoveLetterTourney"
+  chunkSize: 2
+  firstTo: 10
+  tourneyName: "GPTvsRANDOMTourneyv2"
   debug:
     tourney: false  # Debug output for tournament operations
     engine: false   # Debug output for game engine

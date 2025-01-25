@@ -1,4 +1,5 @@
 import os
+from typing import cast
 import torch
 
 from gpt.models.config_types import Config
@@ -97,36 +98,28 @@ def train(config: Config):
     # Training loop
     for epoch in range(1, training_config['epochs'] + 1):
         model.train()
+        metrics = {}
         total_loss = 0
         total_tokens = 0
         pbar = tqdm(enumerate(train_dataloader), total=len(train_dataloader), desc=f'Epoch {epoch}')
         for batch_idx, (x, y, y_value) in pbar:
             x, y, y_value = x.to(device), y.to(device), y_value.to(device)
-            
-            # Count non-padding tokens
-            non_pad_mask = (y != tokenizer.special_tokens['PAD'])
-            num_tokens = non_pad_mask.sum().item()
 
             # Forward pass
             logits, value = model(x)
+
+            # Count non-padding tokens
+            non_pad_mask = (x != tokenizer.special_tokens['PAD'])
+            num_tokens = non_pad_mask.sum().item()
             
-            # Compute policy loss
-            policy_loss = torch.nn.functional.cross_entropy(
-                logits.view(-1, logits.size(-1)),
-                y.view(-1),
-                ignore_index=tokenizer.special_tokens['PAD'],
-                reduction='sum'
-            )
-            
-            # Compute value loss - broadcast y_value to match sequence length
-            value_loss = torch.nn.functional.mse_loss(
-                value.view(-1)[:num_tokens], # [batch, seq_len]
-                y_value.view(-1)[:num_tokens],
-                reduction='sum'
+            # Compute losses
+            losses = model.compute_loss(
+                logits, value, y, y_value,
+                non_pad_mask=non_pad_mask
             )
             
             # Combined loss
-            loss = policy_loss + value_loss            
+            loss = cast(torch.Tensor, sum(losses.values()))       
             
             # Backward pass
             optimizer.zero_grad()
@@ -136,20 +129,25 @@ def train(config: Config):
             scheduler.step()
 
             # Update totals
+            metrics = {name: loss.item() + metrics.get(name, 0) for name, loss in losses.items()}
             total_loss += loss.item()
             total_tokens += num_tokens
             
             # Update progress bar
-            avg_loss = total_loss / total_tokens if total_tokens > 0 else 0
+            avg_loss = total_loss / total_tokens
+            metrics_loss = {name: loss / total_tokens for name, loss in metrics.items()}
             pbar.set_postfix({
                 'avg_loss': f'{avg_loss:.4f}',
+                **{f'{k}': f'{v:.4f}' for k,v in metrics_loss.items()},
                 'lr': f'{scheduler.get_last_lr()[0]:.6f}'
             })
         
         # Log epoch metrics
         avg_loss = total_loss / total_tokens if total_tokens > 0 else 0
+        metrics_loss = {name: loss / total_tokens for name, loss in metrics.items()}
         print({
             "epoch_loss": avg_loss,
+            **{f'{k}': f'{v:.4f}' for k,v in metrics_loss.items()},
             "epoch": epoch,
             "total_tokens": total_tokens
         })
@@ -157,6 +155,7 @@ def train(config: Config):
         # Save checkpoint and run validation
         if epoch % training_config['save_every'] == 0:
             model.eval()
+            val_metrics = {}
             val_loss = 0
             val_tokens = 0
             
@@ -169,40 +168,40 @@ def train(config: Config):
                     logits, value = model(x)
 
                     # Count non-padding tokens
-                    non_pad_mask = (y != tokenizer.special_tokens['PAD'])
+                    non_pad_mask = (x != tokenizer.special_tokens['PAD'])
                     num_tokens = non_pad_mask.sum().item()
-                    
-                    # Compute policy loss
-                    policy_loss = torch.nn.functional.cross_entropy(
-                        logits.view(-1, logits.size(-1)),
-                        y.view(-1),
-                        ignore_index=tokenizer.special_tokens['PAD'],
-                        reduction='sum'
-                    )
-                    
-                    # Compute value loss - broadcast y_value to match sequence length
-                    value_loss = torch.nn.functional.mse_loss(
-                        value.view(-1)[:num_tokens], # [batch, seq_len]
-                        y_value.view(-1)[:num_tokens],
-                        reduction='sum'
+
+                    # Compute losses
+                    losses = model.compute_loss(
+                        logits, value, y, y_value,
+                        non_pad_mask=non_pad_mask
                     )
                     
                     # Combined loss
-                    loss = policy_loss + value_loss 
+                    loss = cast(torch.Tensor, sum(losses.values()))  
                     
+                    # Update totals
+                    val_metrics = {name: loss.item() + val_metrics.get(name, 0) for name, loss in losses.items()}
                     val_loss += loss.item()
                     val_tokens += num_tokens
                     
                     # Update progress bar
-                    avg_val_loss = val_loss / val_tokens if val_tokens > 0 else 0
-                    val_pbar.set_postfix({'avg_val_loss': f'{avg_val_loss:.4f}'})
+                    avg_val_loss = val_loss / val_tokens
+                    val_metrics_loss = {name: loss / val_tokens for name, loss in val_metrics.items()}
+                    val_pbar.set_postfix({
+                        'avg_val_loss': f'{avg_val_loss:.4f}',
+                        **{f'{k}': f'{v:.4f}' for k,v in val_metrics_loss.items()},
+                    })
 
-                avg_val_loss = val_loss / val_tokens if val_tokens > 0 else 0
+                avg_val_loss = val_loss / val_tokens
+                val_metrics_loss = {name: loss / val_tokens for name, loss in val_metrics.items()}
                 perplexity = torch.exp(torch.tensor(avg_val_loss)).item()
                 print({
                     "epoch": epoch,
                     "train_loss": avg_loss,
+                    **{f'{k}': f'{v:.4f}' for k,v in metrics_loss.items()},
                     "val_loss": avg_val_loss,
+                    **{f'val_{k}': f'{v:.4f}' for k,v in val_metrics_loss.items()},
                     "val_perplexity": perplexity,
                     "train_tokens": total_tokens,
                     "val_tokens": val_tokens

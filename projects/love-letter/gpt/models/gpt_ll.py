@@ -115,6 +115,59 @@ class LoveLetterTransformer(nn.Module):
         _, value = self(x)
         return value
     
+    def compute_loss(self, logits, value, y, y_value, non_pad_mask):
+        # Create mask for non-padding tokens
+        mask = non_pad_mask.view(-1)
+        
+        losses = {
+            'policy': (torch.nn.functional.cross_entropy(
+                logits.view(-1, logits.size(-1)),
+                y.view(-1),
+                reduction='none'
+            ) * mask).sum(),
+            'value': (torch.nn.functional.mse_loss(
+                value.view(-1),
+                y_value.view(-1),
+                reduction='none'
+            ) * mask).sum()
+        }
+        
+        return losses
+
+    def generate_continuation(self, x: torch.Tensor, length: torch.Tensor, max_new_tokens: int, temperature=1.0) -> tuple[torch.Tensor, torch.Tensor]:
+        batch_size = x.size(0)
+        device = x.device
+        max_seq_len = self.config['seq_length']
+
+        # Create mask for sequences that need continuation
+        needs_continuation = (length < max_seq_len) & (x.gather(1, (length - 1).unsqueeze(1)).squeeze(1) != 27) & (x.gather(1, (length - 1).unsqueeze(1)).squeeze(1) != 28)
+
+        # Continue generating while any sequence needs continuation and we haven't exceeded max_new_tokens
+        for _ in range(max_new_tokens):
+            if not needs_continuation.any():
+                break
+                
+            # Get predictions for the next token for all sequences
+            logits = self.get_policy(x)  # [batch_size, seq_len, vocab_size]
+            
+            # Select logits at the current sequence lengths
+            next_token_logits = logits.gather(1, (length - 1).unsqueeze(1).unsqueeze(2).expand(-1, -1, logits.size(-1))).squeeze(1)
+            next_token_logits = next_token_logits / temperature
+            
+            # Sample from the distribution
+            probs = F.softmax(next_token_logits, dim=-1)
+            next_tokens = torch.multinomial(probs, num_samples=1).squeeze(-1)  # [batch_size]
+            
+            # Update only sequences that need continuation
+            mask = needs_continuation & (length < max_seq_len)
+            x[mask, length[mask]] = next_tokens[mask]
+            length[mask] += 1
+            
+            # Update continuation mask
+            needs_continuation = mask & (next_tokens != 27) & (next_tokens != 28)
+        
+        return x, length
+    
     def generate(self, tokens: list[int], max_new_tokens: int, temperature=1.0) -> list[int]:
         device = next(self.parameters()).device
         
@@ -144,4 +197,6 @@ class LoveLetterTransformer(nn.Module):
                 break
         
         return tokens
+    
+
     

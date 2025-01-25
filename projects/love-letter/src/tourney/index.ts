@@ -189,7 +189,7 @@ export class LoveLetterTourney {
         });
     
         botProcess.process.stderr!.on('data', (data) => {
-            console.error(`Bot ${botProcess.name} stderr:`, data.toString());
+            console.error(data.toString());
         });
     }
 

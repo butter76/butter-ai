@@ -17,8 +17,8 @@ from common.config import BaseConfig
 @dataclass
 class GPTBotConfig(BaseConfig):
     """Configuration class for GPTBot with debug option."""
-    debug: bool = True
-    checkpoint: str = "./gpt/checkpoints/model_epoch_30.pt"
+    debug: bool = False
+    checkpoint: str = "./gpt/checkpoints/model_epoch_40.pt"
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     temp: float = 1
     depth: int = 20
@@ -26,10 +26,7 @@ class GPTBotConfig(BaseConfig):
 
 
 class GPTBot(LoveLetterBot):
-    """A bot that makes random moves in Love Letter while following game rules.
-    
-    This bot chooses cards randomly from valid options while respecting the game's
-    constraints like the Countess and Princess rules.
+    """A bot that moves based on GPT-generated game logs and its value function
     """
     def __init__(self, config: GPTBotConfig):
         """Initialize the GPTBot with configuration.
@@ -67,7 +64,7 @@ class GPTBot(LoveLetterBot):
         if self.config.debug:
             print(f"[GPTBot Debug] {s}", file=sys.stderr, flush=True)
 
-    def get_aps(self, play_log):
+    def get_aps(self, play_log) -> dict[tuple[int, int | None], float]:
         play_log = play_log.rstrip('\n')
         play_tokens = self.tokenizer.tokenize(play_log)[:-1]
         play_logits = self.model.get_policy(self.tokenizer.pad_and_tensor(play_tokens))
@@ -104,7 +101,7 @@ class GPTBot(LoveLetterBot):
             (4, None): probs[0, 32].item(),
             (5, 1): prince_prob * prince_probs[0, 4].item(),
             (5, 2): prince_prob * prince_probs[0, 5].item(),
-            (6, None): probs[0, 34].item(),
+            (6, None): probs[0, 34].item(),  
             (7, None): probs[0, 35].item(),
         }
         return play_dict
@@ -127,55 +124,62 @@ class GPTBot(LoveLetterBot):
         my_player = f"p{1 if state['am_i_player_one'] else 2}"
         log = "\n".join(lines)
 
-        
         legal_actions = get_legal_actions(hand, state)
 
-        play_log = log + "\n" + f"|{my_player}|play"
-        play_dict = self.get_aps(play_log)
-        self.p(f"Play log: {play_log}")
-        self.p(f"Play dict: {play_dict}")
+        if len(legal_actions) == 1:
+            return legal_actions[0]
 
+        with torch.inference_mode():
 
-        avs = {}
-        for action in legal_actions:
-            card_to_play, target = action
-            action_str = f"|{my_player}|play|{card_to_play}"
-            if target is not None:
-                action_str += f"|{target}"
-            continued_log = log + "\n" + action_str
-            # self.p(f"Continued log: {continued_log}")
-            # self.p(f"Action: {action_str}")
+            play_log = log + "\n" + f"|{my_player}|play"
+            play_dict = self.get_aps(play_log)
+            self.p(f"Play log: {play_log}")
+            self.p(f"Play dict: {play_dict}")
 
+            # Create batch of all action sequences
+            action_logs = []
+            for action in legal_actions:
+                card_to_play, target = action
+                action_str = f"|{my_player}|play|{card_to_play}"
+                if target is not None:
+                    if card_to_play == 1:
+                        action_str += f"|{target}"
+                    elif card_to_play == 5:
+                        action_str += f"|p{target}"
+                continued_log = log + "\n" + action_str
+                action_logs.append(continued_log)
 
-            
-            total_value = 0.0
-            N = self.config.N
-            for _ in range(N):
-                # self.p(f"Attempt {_ + 1} of {N}")
+            # Tokenize all sequences at once
+            all_tokens = [self.tokenizer.tokenize(log) for log in action_logs]
+            padded_tokens = [self.tokenizer.pad_tokens(tokens) for tokens in all_tokens]
 
-                tokens = self.tokenizer.tokenize(continued_log)
+             # Create one big batch tensor
+            batch_size = len(legal_actions) * self.config.N
+            x = torch.tensor(padded_tokens * self.config.N, device=self.config.device, dtype=torch.long)
+            length = torch.tensor([len(tokens) for tokens in all_tokens] * self.config.N, device=self.config.device)
+
+            # Generate continuations for all sequences at once
+            x, length = self.model.generate_continuation(x, length, self.config.depth, temperature=1)
+
+            # Get values for all sequences
+            values = self.model.get_value(x)  # [batch_size, seq_len, 1]
+            final_values = values[torch.arange(batch_size), length - 1, 0]  # [batch_size]
+
+            # Reshape and average values for each action
+            final_values = final_values.view(len(legal_actions), self.config.N)
+            avs = {action: final_values[i].mean().item() for i, action in enumerate(legal_actions)}
+
+            weights = []
+            for action, value in avs.items():
+                new_value = play_dict[action] * (((1 + value) / 2) ** self.config.temp)
+                self.p(f"Action: {action}, Value: {value} New Value: {new_value}")
+                weights.append(new_value)
+
+            selected_action = random.choices(legal_actions, weights=weights, k=1)[0]
+
+            self.p(f"Selected action: {selected_action}")
                 
-                new_tokens = self.model.generate(tokens, min(256 - len(tokens), self.config.depth), temperature=1)
-
-                value = self.model.get_value(self.tokenizer.pad_and_tensor(new_tokens))
-
-                value = value[0, len(new_tokens) - 1, 0].item()
-                # self.p(f"Value: {value}")
-
-                total_value += value
-            avs[action] = total_value / N
-
-        weights = []
-        for action, value in avs.items():
-            new_value = play_dict[action] * (((1 + value) / 2) ** self.config.temp)
-            self.p(f"Action: {action}, Value: {value} New Value: {new_value}")
-            weights.append(new_value)
-
-        selected_action = random.choices(legal_actions, weights=weights, k=1)[0]
-
-        self.p(f"Selected action: {selected_action}")
-            
-        return selected_action
+            return selected_action
 
 
 if __name__ == "__main__":
