@@ -87,7 +87,7 @@ class GPTBot(LoveLetterBot):
         guard_probs = torch.softmax(guard_logits[:, len(guard_tokens) - 1, :], dim=-1)
         prince_probs = torch.softmax(prince_logits[:, len(prince_tokens) - 1, :], dim=-1)
 
-        play_dict = {
+        play_dict: dict[tuple[int, int | None], float] = {
             (1, None): guard_prob * (guard_probs[0, 25].item() + guard_probs[0, 26].item()),
             (1, 2): guard_prob * guard_probs[0, 30].item(),
             (1, 3): guard_prob * guard_probs[0, 31].item(),
