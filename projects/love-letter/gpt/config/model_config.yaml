@@ -1,7 +1,7 @@
 model:
   d_model: 128
   nhead: 8
-  num_layers: 4
+  num_layers: 5
   seq_length: 256
   dropout: 0.1
   ffn_mul: 2

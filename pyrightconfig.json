@@ -18,6 +18,7 @@
         "./",
         "./projects/common",
         "./projects/love-letter",
+        "./projects/chess",
         "./projects"
       ]
     }

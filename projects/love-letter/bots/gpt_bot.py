@@ -18,7 +18,7 @@ from common.config import BaseConfig
 class GPTBotConfig(BaseConfig):
     """Configuration class for GPTBot with debug option."""
     debug: bool = False
-    checkpoint: str = "./gpt/checkpoints/model_epoch_40.pt"
+    checkpoint: str = "./gpt/checkpoints/non-exist/model_epoch_40.pt"
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     temp: float = 1
     depth: int = 20
@@ -138,6 +138,7 @@ class GPTBot(LoveLetterBot):
 
             # Create batch of all action sequences
             action_logs = []
+            avs = {}
             for action in legal_actions:
                 card_to_play, target = action
                 action_str = f"|{my_player}|play|{card_to_play}"
@@ -148,32 +149,46 @@ class GPTBot(LoveLetterBot):
                         action_str += f"|p{target}"
                 continued_log = log + "\n" + action_str
                 action_logs.append(continued_log)
+                tokens = self.tokenizer.tokenize(continued_log)
+                padded_tokens = self.tokenizer.pad_tokens(tokens)
 
-            # Tokenize all sequences at once
-            all_tokens = [self.tokenizer.tokenize(log) for log in action_logs]
-            padded_tokens = [self.tokenizer.pad_tokens(tokens) for tokens in all_tokens]
+                x = torch.tensor([padded_tokens] * self.config.N, device=self.config.device, dtype=torch.long)
+                length = torch.tensor([len(tokens)] * self.config.N, device=self.config.device, dtype=torch.long)
 
-             # Create one big batch tensor
-            batch_size = len(legal_actions) * self.config.N
-            x = torch.tensor(padded_tokens * self.config.N, device=self.config.device, dtype=torch.long)
-            length = torch.tensor([len(tokens) for tokens in all_tokens] * self.config.N, device=self.config.device)
+                x, length = self.model.generate_continuation(x, length, self.config.depth, temperature=1)
+                values = self.model.get_value(x)  # [batch_size, seq_len, 1]
+                final_values = values[torch.arange(self.config.N), length - 1, 0]  # [batch_size]
 
-            # Generate continuations for all sequences at once
-            x, length = self.model.generate_continuation(x, length, self.config.depth, temperature=1)
+                avs[action] = final_values.mean().item()
 
-            # Get values for all sequences
-            values = self.model.get_value(x)  # [batch_size, seq_len, 1]
-            final_values = values[torch.arange(batch_size), length - 1, 0]  # [batch_size]
+            # # Tokenize all sequences at once
+            # all_tokens = [self.tokenizer.tokenize(action_log) for action_log in action_logs]
+            # padded_tokens = [self.tokenizer.pad_tokens(tokens) for tokens in all_tokens]
 
-            # Reshape and average values for each action
-            final_values = final_values.view(len(legal_actions), self.config.N)
-            avs = {action: final_values[i].mean().item() for i, action in enumerate(legal_actions)}
+            #  # Create one big batch tensor
+            # batch_size = len(legal_actions) * self.config.N
+            # x = torch.tensor(padded_tokens * self.config.N, device=self.config.device, dtype=torch.long)
+            # length = torch.tensor([len(tokens) for tokens in all_tokens] * self.config.N, device=self.config.device)
+
+            # # Generate continuations for all sequences at once
+            # x, length = self.model.generate_continuation(x, length, self.config.depth, temperature=1)
+
+            # # Get values for all sequences
+            # values = self.model.get_value(x)  # [batch_size, seq_len, 1]
+            # final_values = values[torch.arange(batch_size), length - 1, 0]  # [batch_size]
+
+            # # Reshape and average values for each action
+            # final_values = final_values.view(len(legal_actions), self.config.N)
+            # avs = {action: final_values[i].mean().item() for i, action in enumerate(legal_actions)}
 
             weights = []
             for action, value in avs.items():
                 new_value = play_dict[action] * (((1 + value) / 2) ** self.config.temp)
-                self.p(f"Action: {action}, Value: {value} New Value: {new_value}")
                 weights.append(new_value)
+
+            for action, value in avs.items():
+                new_value = play_dict[action] * (((1 + value) / 2) ** self.config.temp)
+                self.p(f"Action: {action}, Value: {value} New Value {new_value / sum(weights) * 100:.2f}%")
 
             selected_action = random.choices(legal_actions, weights=weights, k=1)[0]
 

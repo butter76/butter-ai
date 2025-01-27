@@ -1,18 +1,18 @@
 # Tournament Configuration
 bots:
-  - name: "RandomBot1"
-    command: "python3.11 -m bots.random_bot"
-  - name: "GPTBot"
-    command: "python3.11 -m bots.gpt_bot"
+  - name: "GPTBot1"
+    command: "python3.11 -m bots.gpt_bot --checkpoint gpt/checkpoints/generation/gen1.pt"
+  - name: "GPTBot2"
+    command: "python3.11 -m bots.gpt_bot --checkpoint gpt/checkpoints/generation/gen1.pt"
 
 options:
   gamesPerMatch: 200
-  logDirectory: "./.logs/gpt_testing"
+  logDirectory: "./.logs/gen1_logs"
   reportDirectory: "./.reports"
-  timeLimitSeconds: 120
-  chunkSize: 2
-  firstTo: 10
-  tourneyName: "GPTvsRANDOMTourneyv2"
+  timeLimitSeconds: 30
+  chunkSize: 1
+  firstTo: 1
+  tourneyName: "GPTvsGPTSelfPlay-Generation1"
   debug:
     tourney: false  # Debug output for tournament operations
     engine: false   # Debug output for game engine

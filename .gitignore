@@ -54,3 +54,4 @@ __pycache__
 *.reports/
 *.logs/
 .old/
+*.pgn/
