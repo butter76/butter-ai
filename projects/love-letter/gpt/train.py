@@ -60,7 +60,7 @@ def train(config: Config):
     checkpoint_path = training_config.get('checkpoint_path')
     if checkpoint_path and os.path.exists(checkpoint_path):
         checkpoint = torch.load(checkpoint_path)
-
+        model_config = checkpoint['model_config']
         # Create model that matches the checkpoint
         model = LoveLetterTransformer(
             vocab_size=tokenizer.vocab_size,
