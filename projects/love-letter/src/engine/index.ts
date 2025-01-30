@@ -30,6 +30,7 @@ export class LoveLetterEngine {
   private removedCard: number | null;
   private gameEnded: boolean;
   private debug: boolean;
+  private burnedCards: number[];
 
   constructor(private numPlayers: number = 2, gameId: string, options?: GameOptions) {
     // Initialize random deck of cards (16 total).
@@ -42,6 +43,11 @@ export class LoveLetterEngine {
 
     // Remove top card (face-down)
     this.removedCard = this.deck.shift() || null;
+
+    // Burn 3 cards from the top of the deck
+    for (let i = 0; i < 3; i++) {
+      this.burnedCards.push(this.deck.shift());
+    }
 
     // Initialize each player's state
     this.players = [];
@@ -90,6 +96,9 @@ export class LoveLetterEngine {
       this.log(`|player|p${idx + 1}|${name}`);
     });
     this.log(`|gamestart`);
+
+    //Log the 3 burnt cards
+    this.log(`|burn|${this.burnedCards[0]}|${this.burnedCards[1]}|${this.burnedCards[2]}`);
 
     // Log initial draws
     this.players.forEach((p, idx) => {
