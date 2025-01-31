@@ -102,11 +102,16 @@ def train(config: Config):
         total_loss = 0
         total_tokens = 0
         pbar = tqdm(enumerate(train_dataloader), total=len(train_dataloader), desc=f'Epoch {epoch}')
-        for batch_idx, (x, y, y_value) in pbar:
-            x, y, y_value = x.to(device), y.to(device), y_value.to(device)
+        for batch_idx, (x, y, y_value, y_guesses) in pbar:
+            x, y, y_value, y_guesses = x.to(device), y.to(device), y_value.to(device), y_guesses.to(device)
+            target = {
+                'policy': y,
+                'value': y_value,
+                'card_guess': y_guesses
+            }
 
             # Forward pass
-            logits, value = model(x)
+            output = model(x)
 
             # Count non-padding tokens
             non_pad_mask = (x != tokenizer.special_tokens['PAD'])
@@ -114,7 +119,7 @@ def train(config: Config):
             
             # Compute losses
             losses = model.compute_loss(
-                logits, value, y, y_value,
+                output, target,
                 non_pad_mask=non_pad_mask
             )
             
@@ -161,19 +166,24 @@ def train(config: Config):
             
             with torch.inference_mode():
                 val_pbar = tqdm(enumerate(val_dataloader), total=len(val_dataloader), desc=f'Validation Epoch {epoch}')
-                for batch_idx, (x, y, y_value) in val_pbar:
-                    x, y, y_value = x.to(device), y.to(device), y_value.to(device)
-                    
+                for batch_idx, (x, y, y_value, y_guesses) in val_pbar:
+                    x, y, y_value, y_guesses = x.to(device), y.to(device), y_value.to(device), y_guesses.to(device)
+                    target = {
+                        'policy': y,
+                        'value': y_value,
+                        'card_guess': y_guesses
+                    }
+
                     # Forward pass
-                    logits, value = model(x)
+                    output = model(x)
 
                     # Count non-padding tokens
                     non_pad_mask = (x != tokenizer.special_tokens['PAD'])
                     num_tokens = non_pad_mask.sum().item()
-
+                    
                     # Compute losses
                     losses = model.compute_loss(
-                        logits, value, y, y_value,
+                        output, target,
                         non_pad_mask=non_pad_mask
                     )
                     

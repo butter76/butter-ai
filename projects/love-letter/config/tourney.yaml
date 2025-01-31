@@ -7,12 +7,12 @@ bots:
 
 options:
   gamesPerMatch: 125000
-  logDirectory: "./.logs"
+  logDirectory: "./.logs/train/"
   reportDirectory: "./.reports"
   timeLimitSeconds: 60
   chunkSize: 8
   firstTo: 1
-  tourneyName: "LoveLetterTourney"
+  tourneyName: "TestingStuff"
   debug:
     tourney: false  # Debug output for tournament operations
     engine: false   # Debug output for game engine

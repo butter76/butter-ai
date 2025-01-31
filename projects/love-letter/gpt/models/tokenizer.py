@@ -2,58 +2,74 @@ import sys
 
 import torch
 
+SPECIAL_TOKENS = {
+    'PAD': 0,
+    'gamestart': 1,
+    'TURNLINE1': 2,
+    'TURNLINE2': 3,
+    'p1': 4,
+    'p2': 5,
+    'hidden': 6,
+    'draw': 7,
+    'play': 8,
+    'turn': 9,
+    'discard': 10,
+    'reveal': 11,
+    'lose': 12,
+    'end': 13,
+    'win': 14,
+    'nodraw': 15,
+    'highest': 16,
+    'NEWLINE': 17,
+    'swap': 18,
+    'princess': 19,
+    'baron': 20,
+    'guard': 21,
+    'invalid': 22,
+    'timeout': 23,
+    'yourmove': 24,
+    'PLAY1': 25,
+    'PLAY2': 26,
+    'EOS1': 27,
+    'EOS2': 28,
+    'burn': 29,
+}
+NEW_LINE_CHARS = {
+    SPECIAL_TOKENS['NEWLINE'],
+    SPECIAL_TOKENS['TURNLINE1'],
+    SPECIAL_TOKENS['TURNLINE2'],
+    SPECIAL_TOKENS['PLAY1'],
+    SPECIAL_TOKENS['PLAY2'],
+    SPECIAL_TOKENS['EOS1'],
+    SPECIAL_TOKENS['EOS2']
+}
+
+# Add numbers 1-8 for card values
+for i in range(1, 9):
+    SPECIAL_TOKENS[str(i)] = len(SPECIAL_TOKENS)
+
+#Add values for guard plays
+for i in range(2, 9):
+    SPECIAL_TOKENS[str('1=' + str(i))] = len(SPECIAL_TOKENS)
+
+#prince play
+SPECIAL_TOKENS[str('5=p1')] = len(SPECIAL_TOKENS)
+SPECIAL_TOKENS[str('5=p2')] = len(SPECIAL_TOKENS)
+    
+VOCAB_SIZE = len(SPECIAL_TOKENS)
+# Create reverse mapping for detokenization
+ID_TO_TOKEN = {v: k for k, v in SPECIAL_TOKENS.items()}
 
 class LoveLetterTokenizer:
     def __init__(self, debug=False):
         self.debug = debug
-        self.special_tokens = {
-            'PAD': 0,
-            'gamestart': 1,
-            'TURNLINE1': 2,
-            'TURNLINE2': 3,
-            'p1': 4,
-            'p2': 5,
-            'hidden': 6,
-            'draw': 7,
-            'play': 8,
-            'turn': 9,
-            'discard': 10,
-            'reveal': 11,
-            'lose': 12,
-            'end': 13,
-            'win': 14,
-            'nodraw': 15,
-            'highest': 16,
-            'NEWLINE': 17,
-            'swap': 18,
-            'princess': 19,
-            'baron': 20,
-            'guard': 21,
-            'invalid': 22,
-            'timeout': 23,
-            'yourmove': 24,
-            'PLAY1': 25,
-            'PLAY2': 26,
-            'EOS1': 27,
-            'EOS2': 28,
-        }
-        self.new_line = {
-            self.special_tokens['NEWLINE'],
-            self.special_tokens['TURNLINE1'],
-            self.special_tokens['TURNLINE2'],
-            self.special_tokens['PLAY1'],
-            self.special_tokens['PLAY2'],
-            self.special_tokens['EOS1'],
-            self.special_tokens['EOS2']
-        }
+        self.special_tokens = SPECIAL_TOKENS
+        self.new_line = NEW_LINE_CHARS
         
-        # Add numbers 1-8 for card values
-        for i in range(1, 9):
-            self.special_tokens[str(i)] = len(self.special_tokens)
             
-        self.vocab_size = len(self.special_tokens)
+        self.vocab_size = VOCAB_SIZE
         # Create reverse mapping for detokenization
-        self.id_to_token = {v: k for k, v in self.special_tokens.items()}
+        self.id_to_token = ID_TO_TOKEN
 
     def p(self, s):
         if self.debug:
@@ -75,6 +91,8 @@ class LoveLetterTokenizer:
             line = line.strip()
             if line:
                 self.p(line)
+                if 'info' in line:
+                    continue
                 for word in line.split('|'):
                     word = word.strip()
                     if word:
@@ -82,7 +100,7 @@ class LoveLetterTokenizer:
                             tokens.append(self.special_tokens[word])
                             self.p(f"Added token for {word}")
                         else:
-                            self.p("AN UNKNOWN WORD: " + word)
+                            raise ValueError(f"Unknown token: {word}")
                 if 'win' in line:
                     if 'p1' in line:
                         tokens.append(self.special_tokens['EOS1'])

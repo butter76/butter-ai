@@ -3,7 +3,7 @@ import torch
 from torch.utils.data import Dataset
 import os
 from typing import List, Tuple
-from .tokenizer import LoveLetterTokenizer
+from .tokenizer import SPECIAL_TOKENS, LoveLetterTokenizer
 from .config_types import ModelConfig, DataConfig
 
 class LoveLetterDataset(Dataset):
@@ -17,7 +17,7 @@ class LoveLetterDataset(Dataset):
         count = 0
 
         
-        self.examples: List[tuple[List[int], bool]] = []
+        self.examples: List[tuple[List[int], bool, List[int]]] = []
         for filename in os.listdir(data_dir):
             if filename.endswith('.log'):
                 with open(os.path.join(data_dir, filename), 'r') as f:
@@ -26,7 +26,8 @@ class LoveLetterDataset(Dataset):
                     lines = lines[4:]
 
                     victory = False
-
+                    guess = '1'
+                    guesses = []
                     if (random.random() < 2.0 / 3.0 and data_config['type'] == 'mixed') or data_config['type'] == 'pov':
                         # Randomly choose which player's hidden info to remove
                         remove_p1_hidden = random.random() < 0.5
@@ -35,12 +36,21 @@ class LoveLetterDataset(Dataset):
                         
                         # Filter out hidden information based on random choice
                         for line in lines:
+                            if 'info' in line:
+                                # Update what needs to be guessed
+                                if my_player == 'p2':
+                                    guess = line.split('|')[3]
+                                if my_player == 'p1':
+                                    guess = line.split('|')[4]
+                                continue
                             if remove_p1_hidden:
                                 if '|p1|hidden' not in line:
                                     filtered_lines.append(line)
+                                    guesses.extend([SPECIAL_TOKENS[guess]] * len(line.split('|')))
                             else:
                                 if '|p2|hidden' not in line:
                                     filtered_lines.append(line)
+                                    guesses.extend([SPECIAL_TOKENS[guess]] * len(line.split('|')))
                             if '|end|p1|win' in line:
                                 victory = (my_player == 'p1')
                             if '|end|p2|win' in line:
@@ -51,7 +61,7 @@ class LoveLetterDataset(Dataset):
                     tokens = self.tokenizer.tokenize(log)
 
                     if tokens:  # Only add non-empty sequences
-                        self.examples.append((tokens, victory))
+                        self.examples.append((tokens, victory, guesses))
                     count += 1
             if (max_logs is not None) and (count >= max_logs):
                 break
@@ -59,8 +69,10 @@ class LoveLetterDataset(Dataset):
     def __len__(self) -> int:
         return len(self.examples)
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        tokens, victory = self.examples[idx]
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        tokens, victory, guesses = self.examples[idx]
+
+        assert len(tokens) == len(guesses)
         
         # Create input and target sequences
         if len(tokens) > self.seq_length + 1:
@@ -68,6 +80,7 @@ class LoveLetterDataset(Dataset):
 
         pad_length = self.seq_length - len(tokens) + 1
         padded_tokens = tokens + [self.tokenizer.special_tokens['PAD']] * pad_length # [seq_length + 1]
+        padded_guesses = guesses + [self.tokenizer.special_tokens['PAD']] * (self.seq_length - len(guesses)) # [seq_length]
         
         # x: everything except the last token
         x = torch.tensor(padded_tokens[:-1], dtype=torch.long)  # [seq_length]
@@ -75,9 +88,12 @@ class LoveLetterDataset(Dataset):
         y = torch.tensor(padded_tokens[1:], dtype=torch.long)   # [seq_length]
         # y' for the value head
         y_value = torch.tensor([1 if victory else -1] * self.seq_length, dtype=torch.bfloat16)  # [1]
+
+        # y_guesses: guesses for the opponent's hand
+        y_guesses = torch.tensor(padded_guesses, dtype=torch.long)  # [seq_length]
         
         
-        return x, y, y_value
+        return x, y, y_value, y_guesses
     
     def get_padding_mask(self, tokens: torch.Tensor) -> torch.Tensor:
         """Create padding mask where 1 indicates non-pad tokens."""

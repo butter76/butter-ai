@@ -8,19 +8,19 @@ model:
   device: cuda
 
 data:
-  data_dir: "../../../love-letter-logs/logs/"
+  data_dir: "./.logs/train"
   train_split: 0.95
   val_split: 0.05
   type: pov
 
 training:
-  batch_size: 128
+  batch_size: 256
   epochs: 100
   learning_rate: 0.001
   weight_decay: 0.01
   save_every: 5
-  num_workers: 8
-  prefetch_factor: 2
+  num_workers: 4
+  prefetch_factor: 1
 
 generation:
   temperature: 1.0

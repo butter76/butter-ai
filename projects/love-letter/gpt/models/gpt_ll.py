@@ -4,6 +4,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from flash_attn import flash_attn_func
 from flash_attn.modules.mha import FlashSelfAttention
+
+from gpt.models.tokenizer import SPECIAL_TOKENS
 from .config_types import ModelConfig
 
 class FlashAttentionLayer(nn.Module):
@@ -92,7 +94,10 @@ class LoveLetterTransformer(nn.Module):
             nn.Tanh()  # Output between -1 and 1 for win probability
         )
 
-    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        # Opponent's card head
+        self.opp_card_head = nn.Linear(d_model, vocab_size)
+
+    def forward(self, x: torch.Tensor):
         seq_len = x.size(1)
         
         x_embedded = self.embedding(x)  # [batch_size, seq_len, d_model]
@@ -105,31 +110,46 @@ class LoveLetterTransformer(nn.Module):
         
         policy_logits = self.policy_head(features)  # [batch_size, seq_len, vocab_size]
         value = self.value_head(features) # [batch_size, seq_len, 1]
-        return policy_logits, value
+        opp_card = self.opp_card_head(features)
+    
+        return {
+            'policy': policy_logits,
+            'value': value,
+            'card_guess': opp_card
+        }
     
     def get_policy(self, x: torch.Tensor) -> torch.Tensor:
-        policy_logits, _ = self(x)
-        return policy_logits
+        output = self(x)
+        return output['policy']
     
     def get_value(self, x: torch.Tensor) -> torch.Tensor:
-        _, value = self(x)
-        return value
+        output = self(x)
+        return output['value']
     
-    def compute_loss(self, logits, value, y, y_value, non_pad_mask):
+    def compute_loss(self, output, target, non_pad_mask):
         # Create mask for non-padding tokens
         mask = non_pad_mask.view(-1)
+
+        logits = output['policy']
+        value = output['value']
+        guesses = output['card_guess']
         
         losses = {
             'policy': (torch.nn.functional.cross_entropy(
                 logits.view(-1, logits.size(-1)),
-                y.view(-1),
+                target['policy'].view(-1),
                 reduction='none'
             ) * mask).sum(),
             'value': (torch.nn.functional.mse_loss(
                 value.view(-1),
-                y_value.view(-1),
+                target['value'].view(-1),
                 reduction='none'
-            ) * mask).sum()
+            ) * mask).sum(),
+            'card_guess': (torch.nn.functional.cross_entropy(
+                guesses.view(-1, guesses.size(-1)),
+                target['card_guess'].view(-1),
+                reduction='none'
+            ) * mask).sum(),
         }
         
         return losses
@@ -140,7 +160,7 @@ class LoveLetterTransformer(nn.Module):
         max_seq_len = self.config['seq_length']
 
         # Create mask for sequences that need continuation
-        needs_continuation = (length < max_seq_len) & (x.gather(1, (length - 1).unsqueeze(1)).squeeze(1) != 27) & (x.gather(1, (length - 1).unsqueeze(1)).squeeze(1) != 28)
+        needs_continuation = (length < max_seq_len) & (x.gather(1, (length - 1).unsqueeze(1)).squeeze(1) != SPECIAL_TOKENS['EOS1']) & (x.gather(1, (length - 1).unsqueeze(1)).squeeze(1) != SPECIAL_TOKENS['EOS2'])
 
         # Continue generating while any sequence needs continuation and we haven't exceeded max_new_tokens
         for _ in range(max_new_tokens):
@@ -164,7 +184,7 @@ class LoveLetterTransformer(nn.Module):
             length[mask] += 1
             
             # Update continuation mask
-            needs_continuation = mask & (next_tokens != 27) & (next_tokens != 28)
+            needs_continuation = mask & (next_tokens != SPECIAL_TOKENS['EOS1']) & (next_tokens != SPECIAL_TOKENS['EOS2'])
         
         return x, length
     
@@ -193,7 +213,7 @@ class LoveLetterTransformer(nn.Module):
             # Add new token to sequence
             tokens.append(next_token)
 
-            if next_token == 27 or next_token == 28:
+            if next_token == SPECIAL_TOKENS['EOS1'] or next_token == SPECIAL_TOKENS['EOS2']:
                 break
         
         return tokens

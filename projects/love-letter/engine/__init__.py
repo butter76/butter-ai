@@ -19,7 +19,7 @@ class LoveLetterEngine:
 		# Initialize deck (16 cards)
 		# Cards: 1(Guard)x5, 2(Priest)x2, 3(Baron)x2, 4(Handmaid)x2,
 		# 5(Prince)x2, 6(King)x1, 7(Countess)x1, 8(Princess)x1
-		self.deck = deck
+		self.deck = deckyi
 		
 		# Remove top card (face-down)
 		self.removed_card = self.deck.pop(0) if self.deck else None
@@ -63,7 +63,7 @@ class LoveLetterEngine:
 		for idx, name in enumerate(player_names, 1):
 			self.log(f"|player|p{idx}|{name}")
 		self.log("|gamestart")
-		
+
 		# Log initial draws
 		for idx, player in enumerate(self.players, 1):
 			if player.hand:

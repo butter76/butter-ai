@@ -78,7 +78,7 @@ def parse_game_state(lines: list[str]) -> tuple[Hand, GameState]:
 
         # Track when we play cards (remove from hand)
         if parts[1] == f'p{my_player_num}' and parts[2] == 'play':
-            played_card = int(parts[3])
+            played_card = int(parts[3].split('=')[0])
             if played_card in hand:
                 hand.remove(played_card)
 

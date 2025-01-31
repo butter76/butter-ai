@@ -30,6 +30,7 @@ export class LoveLetterEngine {
   private removedCard: number | null;
   private gameEnded: boolean;
   private debug: boolean;
+  private burnedCards: number[];
 
   constructor(private numPlayers: number = 2, gameId: string, options?: GameOptions) {
     // Initialize random deck of cards (16 total).
@@ -42,6 +43,13 @@ export class LoveLetterEngine {
 
     // Remove top card (face-down)
     this.removedCard = this.deck.shift() || null;
+    this.burnedCards = [];
+
+    // Burn 3 cards from the top of the deck
+    for (let i = 0; i < 3; i++) {
+      this.burnedCards.push(this.deck.shift()!);
+    }
+
 
     // Initialize each player's state
     this.players = [];
@@ -91,12 +99,19 @@ export class LoveLetterEngine {
     });
     this.log(`|gamestart`);
 
+    //add info at start for training:
+    this.log(`|info|hand|${this.players[0].hand[0]}|${this.players[1].hand[0]}`);
+
+    //Log the 3 burnt cards
+    this.log(`|burn|${this.burnedCards[0]}|${this.burnedCards[1]}|${this.burnedCards[2]}`);
+    
     // Log initial draws
     this.players.forEach((p, idx) => {
       this.log(`|p${idx + 1}|hidden|draw|${p.hand[0]}`);
     });
 
     // Player 1 starts
+    this.log(`|info|hand|${this.players[0].hand[0]}|${this.players[1].hand[0]}`);
     this.log(`|turn|p1`);
   }
 
@@ -209,10 +224,10 @@ export class LoveLetterEngine {
       // If it's 0 or 1 => presumably the other player
       if (cardToPlay === 1) {
         // Guard guess
-        playLog += `|${target}`;
+        playLog += `=${target}`;
       } else if (cardToPlay === 5) {
         // For Prince
-        playLog += `|p${target}`;
+        playLog += `=p${target}`;
       }
     }
     this.log(playLog);
@@ -223,6 +238,7 @@ export class LoveLetterEngine {
     if (cardIndex >= 0) {
       hand.splice(cardIndex, 1);
     }
+
 
     // The Countess rule: if you hold Countess (7) with King/Prince you must discard it.
     // Typically enforced by the player, but we won't handle it forcibly here. Just an FYI.
@@ -238,6 +254,7 @@ export class LoveLetterEngine {
         otherPlayer.eliminated = true;
         this.log(`|lose|p${otherIndex + 1}|guard`);
         this.log(`|end|p${playerIndex + 1}|win`);
+        this.log(`|info|hand|${this.players[0].hand[0]}|${this.players[1].hand[0]}`);
         this.gameEnded = true;
         return;
       }
@@ -260,12 +277,14 @@ export class LoveLetterEngine {
           this.log(`|lose|p${otherIndex + 1}|baron`);
           this.log(`|end|p${playerIndex + 1}|win`);
           this.gameEnded = true;
+          this.log(`|info|hand|${this.players[0].hand[0]}|${this.players[1].hand[0]}`);
           return;
         } else if (theirCard > myCard) {
           // current player is eliminated
           currentPlayer.eliminated = true;
           this.log(`|lose|p${playerIndex + 1}|baron`);
           this.log(`|end|p${otherIndex + 1}|win`);
+          this.log(`|info|hand|${this.players[0].hand[0]}|${this.players[1].hand[0]}`);
           this.gameEnded = true;
           return;
         }
@@ -301,7 +320,6 @@ export class LoveLetterEngine {
             this.log(`|end|p${playerIndex + 1}|win`);
           }
           this.gameEnded = true;
-          return;
         }
 
         // Then draw a new card
@@ -315,6 +333,11 @@ export class LoveLetterEngine {
           tPlayer.hand.push(this.removedCard);
           this.log(`|p${targetIndex + 1}|hidden|draw|${this.removedCard}`);
           this.removedCard = null;
+        }
+
+        if (this.gameEnded) {
+          this.log(`|info|hand|${this.players[0].hand[0]}|${this.players[1].hand[0]}`);
+          return;
         }
       }
     }
@@ -341,6 +364,7 @@ export class LoveLetterEngine {
       currentPlayer.eliminated = true;
       this.log(`|lose|p${playerIndex + 1}|princess`);
       this.log(`|end|p${otherIndex + 1}|win`);
+      this.log(`|info|hand|${this.players[0].hand[0]}|${this.players[1].hand[0]}`);
       this.gameEnded = true;
       return;
     }
@@ -366,10 +390,12 @@ export class LoveLetterEngine {
           this.log(`|end|p2|win`);
         }
         this.gameEnded = true;
+        this.log(`|info|hand|${this.players[0].hand[0]}|${this.players[1].hand[0]}`);
         return;
       }
       this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.numPlayers;
       // Turn log
+      this.log(`|info|hand|${this.players[0].hand[0]}|${this.players[1].hand[0]}`);
       this.log(`|turn|p${otherIndex + 1}`);
     }
   }
