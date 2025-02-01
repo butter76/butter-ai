@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import random
-from sre_parse import SPECIAL_CHARS
 import sys
 from typing import Any
 from dataclasses import dataclass
@@ -19,11 +18,12 @@ from common.config import BaseConfig
 class GPTBotConfig(BaseConfig):
     """Configuration class for GPTBot with debug option."""
     debug: bool = False
-    checkpoint: str = "./gpt/checkpoints/non-exist/model_epoch_40.pt"
+    checkpoint: str = "./gpt/checkpoints/generation/gen1.pt"
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
-    temp: float = 1
+    temp: float = 1.7
     depth: int = 20
     N: int = 128
+    model_value_weight: int = 4
 
 
 class GPTBot(LoveLetterBot):
@@ -72,9 +72,12 @@ class GPTBot(LoveLetterBot):
 
         play_logits = output['policy']
         play_values = output['value']
+        guess_values = output['card_guess']
 
         logits = play_logits[:, len(play_tokens) - 1, :]  # [1, vocab_size]
         probs = torch.softmax(logits, dim=-1)
+        guess_logits = guess_values[:, len(play_tokens) - 1, :]
+        guess_probs = torch.softmax(guess_logits, dim=-1)
 
         play_dict: dict[tuple[int, int | None], float] = {
             (1, None): probs[0, SPECIAL_TOKENS['1']].item(),
@@ -90,27 +93,37 @@ class GPTBot(LoveLetterBot):
             (4, None): probs[0, SPECIAL_TOKENS['4']].item(),
             (5, 1): probs[0, SPECIAL_TOKENS['5=p1']].item(),
             (5, 2): probs[0, SPECIAL_TOKENS['5=p2']].item(),
-            (6, None): probs[0, SPECIAL_TOKENS['5']].item(),
+            (6, None): probs[0, SPECIAL_TOKENS['6']].item(),
             (7, None): probs[0, SPECIAL_TOKENS['7']].item(),
         }
         value_dict: dict[tuple[int, int | None], float] = {
-            (1, None): play_values[0, len(play_tokens) - 1].item(),
-            (1, 2): play_values[0, len(play_tokens) - 1].item(),
-            (1, 3): play_values[0, len(play_tokens) - 1].item(),
-            (1, 4): play_values[0, len(play_tokens) - 1].item(),
-            (1, 5): play_values[0, len(play_tokens) - 1].item(),
-            (1, 6): play_values[0, len(play_tokens) - 1].item(),
-            (1, 7): play_values[0, len(play_tokens) - 1].item(),    
-            (1, 8): play_values[0, len(play_tokens) - 1].item(),
-            (2, None): play_values[0, len(play_tokens) - 1].item(),
-            (3, None): play_values[0, len(play_tokens) - 1].item(),
-            (4, None): play_values[0, len(play_tokens) - 1].item(),
-            (5, 1): play_values[0, len(play_tokens) - 1].item(),
-            (5, 2): play_values[0, len(play_tokens) - 1].item(),
-            (6, None): play_values[0, len(play_tokens) - 1].item(),
-            (7, None): play_values[0, len(play_tokens) - 1].item(),
+            (1, None): play_values[0, SPECIAL_TOKENS['1']].item(),
+            (1, 2): play_values[0, SPECIAL_TOKENS['1=2']].item(),
+            (1, 3): play_values[0, SPECIAL_TOKENS['1=3']].item(),
+            (1, 4): play_values[0, SPECIAL_TOKENS['1=4']].item(),
+            (1, 5): play_values[0, SPECIAL_TOKENS['1=5']].item(),
+            (1, 6): play_values[0, SPECIAL_TOKENS['1=6']].item(),
+            (1, 7): play_values[0, SPECIAL_TOKENS['1=7']].item(),    
+            (1, 8): play_values[0, SPECIAL_TOKENS['1=8']].item(),
+            (2, None): play_values[0, SPECIAL_TOKENS['2']].item(),
+            (3, None): play_values[0, SPECIAL_TOKENS['3']].item(),
+            (4, None): play_values[0, SPECIAL_TOKENS['4']].item(),
+            (5, 1): play_values[0, SPECIAL_TOKENS['5=p1']].item(),
+            (5, 2): play_values[0, SPECIAL_TOKENS['5=p2']].item(),
+            (6, None): play_values[0, SPECIAL_TOKENS['6']].item(),
+            (7, None): play_values[0, SPECIAL_TOKENS['7']].item(),
         }
-        return play_dict, value_dict
+        guess_dict: dict[int, float] = {
+            (1): guess_probs[0, SPECIAL_TOKENS['1']].item()*100,
+            (2): guess_probs[0, SPECIAL_TOKENS['2']].item()*100,
+            (3): guess_probs[0, SPECIAL_TOKENS['3']].item()*100,
+            (4): guess_probs[0, SPECIAL_TOKENS['4']].item()*100,
+            (5): guess_probs[0, SPECIAL_TOKENS['5']].item()*100,
+            (6): guess_probs[0, SPECIAL_TOKENS['6']].item()*100,
+            (7): guess_probs[0, SPECIAL_TOKENS['7']].item()*100,
+            (8): guess_probs[0, SPECIAL_TOKENS['8']].item()*100,
+        }
+        return play_dict, value_dict, guess_dict
 
     def choose_move(self, lines: list[str], hand: Hand, state: GameState, time_limit: int | None) -> Move:
         """Choose which card to play and optional target.
@@ -126,6 +139,8 @@ class GPTBot(LoveLetterBot):
         self.p(f"Hand: {hand}")
         self.p(f"State: {state}")
         self.p(f"Time limit: {time_limit}")
+        
+
 
         my_player = f"p{1 if state['am_i_player_one'] else 2}"
         log = "\n".join(lines)
@@ -138,8 +153,12 @@ class GPTBot(LoveLetterBot):
         with torch.inference_mode():
 
             play_log = log + "\n" + f"|{my_player}|play"
-            play_dict, value_dict = self.get_aps(play_log)
+            play_dict, value_dict, guess_dict = self.get_aps(play_log)
             self.p(f"Play log: {play_log}")
+
+            x_start = self.tokenizer.pad_tokens(self.tokenizer.tokenize(log))
+            x = torch.tensor([x_start], device=self.config.device, dtype=torch.long)
+            self.p(f"Card guess: {guess_dict}")
             self.p(f"Play dict: {play_dict}")
 
             # Create batch of all action sequences
@@ -148,6 +167,7 @@ class GPTBot(LoveLetterBot):
             game_count = {}
             x_tensor = {}
             length_tensor = {}
+            playable_dict = {}
 
             for action in legal_actions:
                 card_to_play, target = action
@@ -164,6 +184,7 @@ class GPTBot(LoveLetterBot):
 
                 x_tensor[action] = padded_tokens
                 length_tensor[action] = len(tokens)
+                playable_dict[action] = play_dict[action]
                 # x = torch.tensor([padded_tokens] * self.config.N, device=self.config.device, dtype=torch.long)
                 # length = torch.tensor([len(tokens)] * self.config.N, device=self.config.device, dtype=torch.long)
 
@@ -172,7 +193,7 @@ class GPTBot(LoveLetterBot):
                 # final_values = values[torch.arange(self.config.N), length - 1, 0]  # [batch_size]
 
                 # avs[action] = final_values.mean().item()
-            random_actions = random.choices(list(play_dict.keys()), weights=list(play_dict.values()), k=self.config.N)
+            random_actions = random.choices(list(playable_dict.keys()), weights=list(playable_dict.values()), k=self.config.N)
             x = torch.tensor([x_tensor[ra] for ra in random_actions], device=self.config.device, dtype=torch.long)
             length = torch.tensor([length_tensor[ra] for ra in random_actions], device=self.config.device, dtype=torch.long)
 
@@ -181,13 +202,13 @@ class GPTBot(LoveLetterBot):
             
             final_values = value[torch.arange(len(random_actions)), length - 1, 0]
             for i, action in enumerate(random_actions):
-                avs[action] += final_values[i].item()
-                game_count[action] += 1
+                avs[action] = avs.get(action, 0) + final_values[i].item()
+                game_count[action] = game_count.get(action, 0) + 1
 
+            new_values= {}
             for action in avs.keys():
-                avs[action] += (self.config.N - game_count[action]) * value_dict[action]
-
-
+                new_values[action] = (avs[action]+(self.config.model_value_weight) * value_dict[action])/((self.config.model_value_weight) +game_count[action])
+                self.p(f"Action: {action}, Old Value: {value_dict[action]}, New Value: {new_values[action]}")
             # # Tokenize all sequences at once
             # all_tokens = [self.tokenizer.tokenize(action_log) for action_log in action_logs]
             # padded_tokens = [self.tokenizer.pad_tokens(tokens) for tokens in all_tokens]
@@ -207,19 +228,19 @@ class GPTBot(LoveLetterBot):
             # # Reshape and average values for each action
             # final_values = final_values.view(len(legal_actions), self.config.N)
             # avs = {action: final_values[i].mean().item() for i, action in enumerate(legal_actions)}
-
+            max_val = max(new_values.values())
+            self.p(f"Max Value: {max_val}")
             weights = []
             for action, value in avs.items():
-               new_value = play_dict[action] * (((1 + value/self.config.N) / 2) ** self.config.temp)
-               weights.append(new_value)
-
-            for action, value in avs.items():
-               new_value = play_dict[action] * (((1 + value/self.config.N) / 2) ** self.config.temp)
-               self.p(f"Action: {action}, Value: {value} New Value {new_value / sum(weights) * 100:.2f}%")
+                new_value = play_dict[action] * ((1 + new_values[action]) /(1+max_val))** self.config.temp
+                weights.append(new_value)
 
             selected_action = random.choices(list(avs.keys()), weights=weights, k=1)[0]
-
-            self.p(f"Selected action: {selected_action}")
+            if self.config.debug:
+                weights_sum = sum(weights)
+                for i, action in enumerate(avs.keys()):
+                    self.p(f"Action: {action}, Play probability: {weights[i]/weights_sum*100}%")
+                self.p(f"Selected action: {selected_action}")
                 
             return selected_action
 
