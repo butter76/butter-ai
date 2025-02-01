@@ -165,7 +165,9 @@ export class LoveLetterTourney {
         
         this.eloRatings.set(winner, this.eloRatings.get(winner)! + eloChange);
         this.eloRatings.set(loser, this.eloRatings.get(loser)! - eloChange);
-    }    private spawnBot(botSpec: BotSpec): BotProcess {
+    }
+    
+    private spawnBot(botSpec: BotSpec): BotProcess {
         const parts = botSpec.command.split(' ');
         const process = spawn(parts[0], parts.slice(1), {
             stdio: ['pipe', 'pipe', 'pipe']

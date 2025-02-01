@@ -31,3 +31,10 @@ yarn setup
 ```
 
 Most scripts are run using `yarn`. Check the `package.json` in each project folder for all scripts.
+
+
+#### Love Letter
+
+```
+find . -type f -exec grep -qF "p1|GPTBotGen2" {} \; -exec grep -qF "p1|win" {} \; -print | wc -l
+```

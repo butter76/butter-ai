@@ -18,7 +18,7 @@ from common.config import BaseConfig
 class GPTBotConfig(BaseConfig):
     """Configuration class for GPTBot with debug option."""
     debug: bool = False
-    checkpoint: str = "./gpt/checkpoints/generation/gen1.pt"
+    checkpoint: str = "./gpt/checkpoints/non-exist/gen1.pt"
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     temp: float = 1.7
     depth: int = 20

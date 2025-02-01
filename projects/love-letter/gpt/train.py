@@ -57,6 +57,7 @@ def train(config: Config):
     )
 
     # Load from checkpoint if it exists
+    checkpoint = None
     checkpoint_path = training_config.get('checkpoint_path')
     if checkpoint_path and os.path.exists(checkpoint_path):
         checkpoint = torch.load(checkpoint_path)
@@ -82,18 +83,16 @@ def train(config: Config):
         lr=training_config['learning_rate'],
         weight_decay=training_config['weight_decay']
     )
+        
 
     # After creating the optimizer, add the scheduler:
-    scheduler = torch.optim.lr_scheduler.OneCycleLR(
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,
-        max_lr=training_config['learning_rate'],
-        epochs=training_config['epochs'],
-        steps_per_epoch=len(train_dataloader),
-        pct_start=0.3,  # Spend 30% of training time in warmup
-        div_factor=25,  # Initial lr = max_lr/25
-        final_div_factor=1e4  # Final lr = initial_lr/10000
+        mode='min',
+        factor=0.5,
+        patience=7,
+        min_lr=training_config['learning_rate'] / 100,
     )
-
     
     # Training loop
     for epoch in range(1, training_config['epochs'] + 1):
@@ -131,7 +130,6 @@ def train(config: Config):
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
-            scheduler.step()
 
             # Update totals
             metrics = {name: loss.item() + metrics.get(name, 0) for name, loss in losses.items()}
@@ -206,6 +204,7 @@ def train(config: Config):
                 avg_val_loss = val_loss / val_tokens
                 val_metrics_loss = {name: loss / val_tokens for name, loss in val_metrics.items()}
                 perplexity = torch.exp(torch.tensor(avg_val_loss)).item()
+                scheduler.step(avg_val_loss)
                 print({
                     "epoch": epoch,
                     "train_loss": avg_loss,
