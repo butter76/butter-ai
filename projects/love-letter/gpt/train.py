@@ -57,6 +57,7 @@ def train(config: Config):
     )
 
     # Load from checkpoint if it exists
+    epoch = 0
     checkpoint = None
     checkpoint_path = training_config.get('checkpoint_path')
     if checkpoint_path and os.path.exists(checkpoint_path):
@@ -69,6 +70,7 @@ def train(config: Config):
         ).to(device)
 
         model.load_state_dict(checkpoint['model_state_dict'])
+        epoch = checkpoint['epoch']
         print(f"Loaded model from checkpoint: {checkpoint_path}")
     else:
         # Initialize model
@@ -91,7 +93,8 @@ def train(config: Config):
         gamma=0.93,  # Decay rate per epoch
     )    
     # Training loop
-    for epoch in range(1, training_config['epochs'] + 1):
+    for _ in range(1, training_config['epochs'] + 1):
+        epoch += 1
         model.train()
         metrics = {}
         total_loss = 0
