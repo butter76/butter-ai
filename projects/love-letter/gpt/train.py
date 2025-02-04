@@ -88,10 +88,13 @@ def train(config: Config):
         
 
     # After creating the optimizer, add the scheduler:
-    scheduler = torch.optim.lr_scheduler.ExponentialLR(
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,
-        gamma=0.93,  # Decay rate per epoch
-    )    
+        mode='min',
+        factor=0.5,
+        patience=3,
+        min_lr=1e-4
+    )
     # Training loop
     for _ in range(1, training_config['epochs'] + 1):
         epoch += 1
@@ -144,7 +147,6 @@ def train(config: Config):
                 **{f'{k}': f'{v:.4f}' for k,v in metrics_loss.items()},
                 'lr': f'{scheduler.get_last_lr()[0]:.6f}'
             })
-        scheduler.step()
         
         # Log epoch metrics
         avg_loss = total_loss / total_tokens if total_tokens > 0 else 0
@@ -206,6 +208,7 @@ def train(config: Config):
                 avg_val_loss = val_loss / val_tokens
                 val_metrics_loss = {name: loss / val_tokens for name, loss in val_metrics.items()}
                 perplexity = torch.exp(torch.tensor(avg_val_loss)).item()
+                scheduler.step(avg_val_loss)
                 print({
                     "epoch": epoch,
                     "train_loss": avg_loss,
