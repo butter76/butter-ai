@@ -1,4 +1,5 @@
 from typing import Any, cast, List
+from networkx import mycielski_graph
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -8,50 +9,6 @@ from flash_attn.modules.mha import FlashSelfAttention
 from gpt.models.tokenizer import SPECIAL_TOKENS
 from .config_types import ModelConfig
 
-class FlashAttentionLayer(nn.Module):
-    def __init__(self, d_model, nhead, dropout=0.1):
-        super().__init__()
-        # Pass causal=True directly in the constructor
-        self.flash_attention = FlashSelfAttention(causal=True, attention_dropout=dropout)
-        self.nhead = nhead
-        self.head_dim = d_model // nhead
-        self.scaling = self.head_dim ** -0.5
-        self.dropout = dropout
-        
-        self.q_proj = nn.Linear(d_model, d_model)
-        self.k_proj = nn.Linear(d_model, d_model)
-        self.v_proj = nn.Linear(d_model, d_model)
-        self.out_proj = nn.Linear(d_model, d_model)
-
-    def forward(self, x, causal=True):
-        batch_size, seq_len, d_model = x.shape
-        
-        # Fuse QKV projections into one operation
-        qkv = torch.cat([self.q_proj(x), self.k_proj(x), self.v_proj(x)], dim=-1)
-        qkv = qkv.reshape(batch_size, seq_len, 3, self.nhead, self.head_dim)
-        q, k, v = qkv.unbind(dim=2)
-        
-        # Use flash_attn_func directly instead of FlashSelfAttention module
-        output = cast(Any, flash_attn_func(q, k, v, causal=causal, dropout_p=self.dropout))
-        
-        output = output.contiguous().view(batch_size, seq_len, d_model)
-        return self.out_proj(output)
-
-class FlashTransformerEncoderLayer(nn.Module):
-    def __init__(self, d_model, nhead, dim_feedforward, dropout):
-        super().__init__()
-        self.flash_attention = FlashAttentionLayer(d_model, nhead, dropout)
-        self.linear1 = nn.Linear(d_model, dim_feedforward)
-        self.linear2 = nn.Linear(dim_feedforward, d_model)
-        self.norm1 = nn.LayerNorm(d_model)
-        self.norm2 = nn.LayerNorm(d_model)
-        self.dropout = nn.Dropout(dropout)
-        self.activation = F.gelu
-
-    def forward(self, x):
-        x = x + self.flash_attention(self.norm1(x))
-        x = x + self.dropout(self.linear2(self.activation(self.linear1(self.norm2(x)))))
-        return x
 
 class LoveLetterTransformer(nn.Module):
     def __init__(
@@ -74,14 +31,14 @@ class LoveLetterTransformer(nn.Module):
         self.pos_encoding = nn.Parameter(torch.zeros(max_seq_len, d_model))
         
         # Replace standard transformer layers with Flash Attention layers
-        self.transformer = nn.ModuleList([
-            FlashTransformerEncoderLayer(
-                d_model=d_model,
-                nhead=nhead,
-                dim_feedforward=d_model * ffn_mul,
-                dropout=dropout
-            ) for _ in range(num_layers)
-        ])
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_model,
+            nhead=nhead,
+            dim_feedforward=int(d_model * ffn_mul),
+            dropout=dropout,
+            batch_first=True
+        )
+        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers)
         
         # Policy head (original output layer)
         self.policy_head = nn.Linear(d_model, vocab_size)
@@ -96,26 +53,35 @@ class LoveLetterTransformer(nn.Module):
 
         # Opponent's card head
         self.opp_card_head = nn.Linear(d_model, vocab_size)
+        
+        # My card head
+        self.my_card_head = nn.Linear(d_model, vocab_size)
 
     def forward(self, x: torch.Tensor):
         seq_len = x.size(1)
         
         x_embedded = self.embedding(x)  # [batch_size, seq_len, d_model]
         x_embedded = x_embedded + self.pos_encoding[:seq_len, :]  # [batch_size, seq_len, d_model]
+
+
+        # Create causal mask
+        causal_mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=1).bool()
+        causal_mask = causal_mask.to(x.device)
         
         # Pass through transformer layers
         features = x_embedded  # [batch_size, seq_len, d_model]
-        for layer in self.transformer:
-            features = layer(features)  # [batch_size, seq_len, d_model]
+        features = self.transformer(features, mask=causal_mask)  # [batch_size, seq_len, d_model]
         
         policy_logits = self.policy_head(features)  # [batch_size, seq_len, vocab_size]
         value = self.value_head(features) # [batch_size, seq_len, 1]
-        opp_card = self.opp_card_head(features)
+        opp_card = self.opp_card_head(features)  # [batch_size, seq_len, vocab_size]
+        my_card = self.my_card_head(features)  # [batch_size, seq_len, vocab_size]
     
         return {
             'policy': policy_logits,
             'value': value,
-            'card_guess': opp_card
+            'card_guess': opp_card,
+            'my_card': my_card,
         }
     
     def get_policy(self, x: torch.Tensor) -> torch.Tensor:
@@ -133,6 +99,7 @@ class LoveLetterTransformer(nn.Module):
         logits = output['policy']
         value = output['value']
         guesses = output['card_guess']
+        my_card = output['my_card']
         
         losses = {
             'policy': (torch.nn.functional.cross_entropy(
@@ -148,6 +115,11 @@ class LoveLetterTransformer(nn.Module):
             'card_guess': (torch.nn.functional.cross_entropy(
                 guesses.view(-1, guesses.size(-1)),
                 target['card_guess'].view(-1),
+                reduction='none'
+            ) * mask).sum(),
+            'my_card': (torch.nn.functional.cross_entropy(
+                my_card.view(-1, my_card.size(-1)),
+                target['my_card'].view(-1),
                 reduction='none'
             ) * mask).sum(),
         }

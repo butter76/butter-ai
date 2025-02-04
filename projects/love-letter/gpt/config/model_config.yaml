@@ -8,20 +8,19 @@ model:
   device: cuda
 
 data:
-  data_dir: "./.logs/gptv1vgptv1_traindata/"
-  train_split: 0.95
-  val_split: 0.05
+  data_dir: "./.logs/gen2-selfplay/"
+  train_split: 0.90
+  val_split: 0.10
   type: pov
 
 training:
   batch_size: 256
   epochs: 500
-  learning_rate: 0.0001
+  learning_rate: 0.001
   weight_decay: 0.01
   save_every: 5
   num_workers: 4
   prefetch_factor: 1
-  checkpoint_path: "gpt/checkpoints/model_epoch_30.pt"
 
 generation:
   temperature: 1.0

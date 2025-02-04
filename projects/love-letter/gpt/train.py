@@ -3,7 +3,7 @@ from typing import cast
 import torch
 
 from gpt.models.config_types import Config
-torch.set_default_dtype(torch.bfloat16)
+torch.set_default_dtype(torch.float32)
 torch.set_printoptions(profile="full")
 from torch.utils.data import DataLoader
 from gpt.models.dataset import LoveLetterDataset
@@ -86,14 +86,10 @@ def train(config: Config):
         
 
     # After creating the optimizer, add the scheduler:
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+    scheduler = torch.optim.lr_scheduler.ExponentialLR(
         optimizer,
-        mode='min',
-        factor=0.5,
-        patience=7,
-        min_lr=training_config['learning_rate'] / 100,
-    )
-    
+        gamma=0.93,  # Decay rate per epoch
+    )    
     # Training loop
     for epoch in range(1, training_config['epochs'] + 1):
         model.train()
@@ -101,12 +97,13 @@ def train(config: Config):
         total_loss = 0
         total_tokens = 0
         pbar = tqdm(enumerate(train_dataloader), total=len(train_dataloader), desc=f'Epoch {epoch}')
-        for batch_idx, (x, y, y_value, y_guesses) in pbar:
-            x, y, y_value, y_guesses = x.to(device), y.to(device), y_value.to(device), y_guesses.to(device)
+        for batch_idx, (x, y, y_value, y_guesses, y_my_cards) in pbar:
+            x, y, y_value, y_guesses, y_my_cards = x.to(device), y.to(device), y_value.to(device), y_guesses.to(device), y_my_cards.to(device)
             target = {
                 'policy': y,
                 'value': y_value,
-                'card_guess': y_guesses
+                'card_guess': y_guesses,
+                'my_card': y_my_cards,
             }
 
             # Forward pass
@@ -144,6 +141,7 @@ def train(config: Config):
                 **{f'{k}': f'{v:.4f}' for k,v in metrics_loss.items()},
                 'lr': f'{scheduler.get_last_lr()[0]:.6f}'
             })
+        scheduler.step()
         
         # Log epoch metrics
         avg_loss = total_loss / total_tokens if total_tokens > 0 else 0
@@ -164,12 +162,13 @@ def train(config: Config):
             
             with torch.inference_mode():
                 val_pbar = tqdm(enumerate(val_dataloader), total=len(val_dataloader), desc=f'Validation Epoch {epoch}')
-                for batch_idx, (x, y, y_value, y_guesses) in val_pbar:
-                    x, y, y_value, y_guesses = x.to(device), y.to(device), y_value.to(device), y_guesses.to(device)
+                for batch_idx, (x, y, y_value, y_guesses, y_my_cards) in val_pbar:
+                    x, y, y_value, y_guesses, y_my_cards = x.to(device), y.to(device), y_value.to(device), y_guesses.to(device), y_my_cards.to(device)
                     target = {
                         'policy': y,
                         'value': y_value,
-                        'card_guess': y_guesses
+                        'card_guess': y_guesses,
+                        'my_card': y_my_cards,
                     }
 
                     # Forward pass
@@ -204,7 +203,6 @@ def train(config: Config):
                 avg_val_loss = val_loss / val_tokens
                 val_metrics_loss = {name: loss / val_tokens for name, loss in val_metrics.items()}
                 perplexity = torch.exp(torch.tensor(avg_val_loss)).item()
-                scheduler.step(avg_val_loss)
                 print({
                     "epoch": epoch,
                     "train_loss": avg_loss,

@@ -6,7 +6,7 @@ from typing import Any
 from dataclasses import dataclass
 
 import torch
-torch.set_default_dtype(torch.bfloat16)
+torch.set_default_dtype(torch.float32)
 torch.set_printoptions(profile="full")
 from gpt.models.gpt_ll import LoveLetterTransformer
 from gpt.models.tokenizer import SPECIAL_TOKENS, LoveLetterTokenizer
@@ -20,10 +20,10 @@ class GPTBotConfig(BaseConfig):
     debug: bool = False
     checkpoint: str = "./gpt/checkpoints/non-exist/gen1.pt"
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
-    temp: float = 1.7
+    temp: float = 20
     depth: int = 20
     N: int = 128
-    model_value_weight: int = 4
+    model_value_weight: int = 1
 
 
 class GPTBot(LoveLetterBot):

@@ -1,5 +1,5 @@
 import torch
-torch.set_default_dtype(torch.bfloat16)
+torch.set_default_dtype(torch.float32)
 torch.set_printoptions(profile="full")
 from gpt.models.gpt_ll import LoveLetterTransformer
 from gpt.models.tokenizer import LoveLetterTokenizer

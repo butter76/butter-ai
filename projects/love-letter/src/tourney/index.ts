@@ -254,7 +254,7 @@ export class LoveLetterTourney {
                 
                 // Update results - check if this was a "bot1 first" game
                 const winner = logLines[logLines.length - 1].split('|')[2];
-                if (winner === 'p1') {
+                if (winner === 'p1') { //p1 = bot1
                     if (subGameNumber % 2 === 0) {
                         w1++;
                         this.log(`${slot1.name} won subgame ${subGameNumber} as Player 1 (New score: ${w1}-${w2})`);
@@ -274,7 +274,7 @@ export class LoveLetterTourney {
             
                 subGameNumber++;
             }
-            const p1Won = w1 === firstTo;
+            const p1Won = w1 === firstTo; //counts the number of games where bot1 = whoever went first in this tourney won
             const isBot1First = gameNumber.endsWith('Afirst');
             this.updateResults(p1.name, p2.name, isBot1First, p1Won);
             
